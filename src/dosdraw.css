@@ -1,0 +1,170 @@
+
+:root {
+  image-rendering: pixelated;
+}
+
+html, body {
+  background: #000;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+}
+
+:root {
+  --palette-height: 400px;
+  --cell-size: calc(var(--palette-height) / 8); /* Since there are 2 rows, each cell will have half the height of the palette */
+  --select-fg: #86af30;
+  --select-bg: #3d3d90;
+  --select-fg-width: 3px;
+  --select-bg-width: 2px;
+  --select-notch-size: 12px;
+}
+
+.palette {
+  display: inline-grid;
+  grid-template-columns: repeat(2, var(--cell-size)); /* 8 columns of square cells */
+  grid-template-rows: repeat(8, var(--cell-size)); /* 2 rows of square cells */
+  width: calc(2 * var(--cell-size)); /* Making sure the entire width accommodates all 8 columns */
+  grid-auto-flow: column;
+}
+
+.color-cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  position: relative; /* Needed for positioning the pseudo-elements */
+  overflow: hidden; /* Ensures the pseudo-elements don't overflow */
+}
+
+/* Foreground Highlight */
+.color-cell.foreground-selected {
+  box-shadow: var(--select-fg) var(--select-fg-width) var(--select-fg-width) 0 inset, var(--select-fg) calc(-1 * var(--select-fg-width)) calc(-1 * var(--select-fg-width)) 0 inset;
+}
+
+/* Background Highlight */
+.color-cell.background-selected {
+  box-shadow: var(--select-bg) var(--select-bg-width) var(--select-bg-width) 0 inset, var(--select-bg) calc(-1 * var(--select-bg-width)) calc(-1 * var(--select-bg-width)) 0 inset;
+}
+
+.color-cell.foreground-selected.background-selected {
+  box-shadow:
+    var(--select-bg) var(--select-bg-width) var(--select-bg-width) 0 inset, var(--select-bg) calc(-1 * var(--select-bg-width)) calc(-1 * var(--select-bg-width)) 0 inset,
+    var(--select-fg) var(--select-fg-width) var(--select-fg-width) 0 inset, var(--select-fg) calc(-1 * var(--select-fg-width)) calc(-1 * var(--select-fg-width)) 0 inset;
+}
+
+/* Base styles for the notches */
+.color-cell::before, .color-cell::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  background-color: transparent;
+  border-style: solid;
+  display: none; /* Hidden by default */
+}
+
+/* Foreground Highlight - Top left triangular notch */
+.color-cell.foreground-selected::before {
+  top: calc(var(--select-fg-width) - 1px);
+  left: calc(var(--select-fg-width) - 1px);
+  border-width: var(--select-notch-size) var(--select-notch-size) 0 0; /* Adjust these values to change the notch size */
+  border-color: var(--select-fg) transparent transparent transparent;
+  display: block;
+}
+
+/* Background Highlight - Bottom right triangular notch */
+.color-cell.background-selected::after {
+  bottom: var(--select-bg-width);
+  right: var(--select-bg-width);
+  border-width: 0 0 var(--select-notch-size) var(--select-notch-size); /* Adjust these values to change the notch size */
+  border-color: transparent transparent var(--select-bg) transparent;
+  display: block;
+}
+
+/* Example colors */
+.color-cell:nth-child(1)  { background-color: #000; }
+.color-cell:nth-child(2)  { background-color: #008; }
+.color-cell:nth-child(3)  { background-color: #080; }
+.color-cell:nth-child(4)  { background-color: #088; }
+.color-cell:nth-child(5)  { background-color: #800; }
+.color-cell:nth-child(6)  { background-color: #808; }
+.color-cell:nth-child(7)  { background-color: #880; }
+.color-cell:nth-child(8)  { background-color: #ccc; }
+.color-cell:nth-child(9)  { background-color: #888; }
+.color-cell:nth-child(10) { background-color: #00f; }
+.color-cell:nth-child(11) { background-color: #0f0; }
+.color-cell:nth-child(12) { background-color: #0ff; }
+.color-cell:nth-child(13) { background-color: #f00; }
+.color-cell:nth-child(14) { background-color: #f0f; }
+.color-cell:nth-child(15) { background-color: #ff0; }
+.color-cell:nth-child(16) { background-color: #fff; }
+
+.edit-container {
+  display: inline-grid;
+}
+
+#editor {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.palette {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.options {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.char-picker-container {
+  position: relative;
+  grid-row: 2;
+  grid-column: 2;
+}
+
+.left-pick, .right-pick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  border-top-width: 8px;
+  border-bottom-width: 8px;
+  border-left-width: 4px;
+  border-right-width: 4px;
+  border-style: solid;
+  width: 8px;
+  height: 16px;
+  box-sizing: border-box;
+}
+
+.left-pick {
+  border-color: #619004;
+  border-bottom-color: transparent;
+  border-right-color: transparent;
+  left: 216px;
+  top: 48px;
+}
+
+.right-pick {
+  border-color: #88f;
+  border-top-color: transparent;
+  border-left-color: transparent;
+}
+
+@media only screen and (min-width: 1480px) {
+  .edit-container {
+    transform: scale(2);
+  }
+}

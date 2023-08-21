@@ -1,0 +1,26 @@
+{
+  "name": "dosdraw",
+  "version": "1.0.0",
+  "description": "Browser-based drawing tool for MS-DOS screens.",
+  "main": "build/index.js",
+  "repository": "https://github.com/duncanc/dosdraw",
+  "author": "Duncan Cross <duncan.cross@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "@ampproject/rollup-plugin-closure-compiler": "^0.27.0",
+    "@rollup/plugin-commonjs": "^25.0.4",
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^15.2.0",
+    "@rollup/plugin-typescript": "^11.1.2",
+    "rollup": "^3.28.0",
+    "typescript": "^5.1.6"
+  },
+  "scripts": {
+    "build": "rollup --configPlugin @rollup/plugin-typescript --config rollup.config.ts",
+    "host": "npx http-server ./build -o"
+  },
+  "dependencies": {
+    "tslib": "^2.6.1"
+  }
+}
