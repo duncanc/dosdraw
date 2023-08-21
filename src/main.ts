@@ -38,6 +38,60 @@ function* bresenhamLine(x1: number, y1: number, x2: number, y2: number): Generat
   }
 }
 
+function* filledRect(x1: number, y1: number, x2: number, y2: number): Generator<[number, number]> {
+  const xStep = Math.sign(x2 - x1), yStep = Math.sign(y2 - y1);
+  if (xStep === 0) {
+    if (yStep === 0) {
+      yield [x1, y1];
+    }
+    else for (let y = y1; y !== y2+yStep; y += yStep) {
+      yield [x1, y];
+    }
+    return;
+  }
+  else if (yStep === 0) {
+    for (let x = x1; x !== x2+xStep; x += xStep) {
+      yield [x, y1];
+    }
+  }
+  else {
+    for (let y = y1; y !== y2+yStep; y += yStep)
+    for (let x = x1; x !== x2+xStep; x += xStep) {
+      yield [x, y];
+    }
+  }
+}
+
+function* emptyRect(x1: number, y1: number, x2: number, y2: number): Generator<[number, number]> {
+  const xStep = Math.sign(x2 - x1), yStep = Math.sign(y2 - y1);
+  if (xStep === 0) {
+    if (yStep === 0) {
+      yield [x1, y1];
+    }
+    else for (let y = y1; y !== y2+yStep; y += yStep) {
+      yield [x1, y];
+    }
+    return;
+  }
+  else if (yStep === 0) {
+    for (let x = x1; x !== x2+xStep; x += xStep) {
+      yield [x, y1];
+    }
+  }
+  else {
+    for (let x = x1; x !== x2+xStep; x += xStep) {
+      yield [x, y1];
+    }
+    for (let y = y1 + yStep; y !== y2; y += yStep) {
+      yield [x1, y];
+      yield [x2, y];
+    }
+    for (let x = x1; x !== x2+xStep; x += xStep) {
+      yield [x, y2];
+    }
+  }
+}
+
 function openDialog() {
   return new Promise<Blob | null>((resolve, reject) => {
       const input = document.createElement('input');
@@ -166,6 +220,82 @@ async function main() {
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
             for (const [dx, dy] of bresenhamLine(startX, startY, x, y)) {
+              screen.putChar(dx, dy, currentChars[button], colors[0], colors[2]);
+            }
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
+    filledBox: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+          drawChar(ctx, x, y, currentChars[button], colors[0], colors[2]);
+          const startX = x, startY = y;
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            for (const [dx, dy] of filledRect(startX, startY, x, y)) {
+              drawChar(ctx!, dx, dy, currentChars[button], colors[0], colors[2]);
+            }
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            for (const [dx, dy] of filledRect(startX, startY, x, y)) {
+              screen.putChar(dx, dy, currentChars[button], colors[0], colors[2]);
+            }
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
+    emptyBox: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+          drawChar(ctx, x, y, currentChars[button], colors[0], colors[2]);
+          const startX = x, startY = y;
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            for (const [dx, dy] of emptyRect(startX, startY, x, y)) {
+              drawChar(ctx!, dx, dy, currentChars[button], colors[0], colors[2]);
+            }
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            for (const [dx, dy] of emptyRect(startX, startY, x, y)) {
               screen.putChar(dx, dy, currentChars[button], colors[0], colors[2]);
             }
             ctx!.globalCompositeOperation = 'copy';
