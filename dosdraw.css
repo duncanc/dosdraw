@@ -5,6 +5,8 @@
 
 html, body {
   background: #000;
+  color: #fff;
+  font-family: sans-serif;
   height: 100%;
   padding: 0;
   margin: 0;
@@ -174,4 +176,10 @@ body {
   .edit-container {
     transform: scale(2);
   }
+}
+
+.tilemode-settings {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
 }
