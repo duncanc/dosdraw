@@ -139,6 +139,41 @@ export default class TextModeScreen {
       this.updateCanvas(i % SCREEN_WIDTH, Math.floor(i / SCREEN_WIDTH));
     }
   }
+  putVHalf(x: number, yh: number, color: Color) {
+    const existing = this.buffer[(yh >> 1) * SCREEN_WIDTH + x];
+    const existingTile = existing & 0xff;
+    const existingFG = (existing >>> 8) & 0xf;
+    const existingBG = (existing >>> 12) & 0xf;
+    const side = yh & 1;
+    let otherColor;
+    switch (existingTile) {
+      case 0xDB: case 0x08: case 0x0A: {
+        otherColor = existingFG;
+        break;
+      }
+      case 0x00: case 0x20: case 0xFF: default: {
+        otherColor = existingBG;
+        break;
+      }
+      case 0xDC: {
+        otherColor = side === 1 ? existingBG : existingFG;
+        break;
+      }
+      case 0xDF: {
+        otherColor = side === 1 ? existingFG : existingBG;
+        break;
+      }
+    }
+    if (otherColor === color) {
+      this.putChar(x, yh >> 1, 0xDB, color, existingBG);
+    }
+    else if (side === 0) {
+      this.putChar(x, yh >> 1, 0xDF, color, otherColor);
+    }
+    else {
+      this.putChar(x, yh >> 1, 0xDC, color, otherColor);
+    }
+  }
   saveBlob() {
     if (IS_LITTLE_ENDIAN) return new Blob([this.buffer]);
     const buf = new Uint16Array(this.buffer);

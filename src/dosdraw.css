@@ -183,3 +183,11 @@ body {
   flex-direction: row;
   justify-content: space-between;
 }
+
+body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox) .char-picker-container {
+  visibility: hidden;
+}
+
+body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox) .tilemode-settings {
+  display: none;
+}

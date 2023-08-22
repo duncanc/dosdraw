@@ -219,6 +219,39 @@ async function main() {
         }
       };
     },
+    vbFreehand: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 50 / rect.height);
+          screen.putVHalf(x, y, colors[button]);
+          ctx.drawImage(screen.canvas, 0, 0);
+          let lastX = x, lastY = y;
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 50 / rect.height);  
+            for (const [dx, dy] of bresenhamLine(lastX, lastY, x, y)) {
+              screen.putVHalf(dx, dy, colors[button]);
+            }
+            ctx!.drawImage(screen.canvas, 0, 0);
+            lastX = x;
+            lastY = y;
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
     lines: () => {
       canvas.onpointerdown = e => {
         if (e.pointerType === 'mouse') {
@@ -335,8 +368,14 @@ async function main() {
     },
   };
   tools.freehand();
-  document.getElementById('tool-selector')!.onchange = (e) => {
-    tools[(e.target as HTMLSelectElement).value]();
+  const toolSelector = document.getElementById('tool-selector') as HTMLSelectElement;
+  let selectedTool = toolSelector.value;
+  document.body.classList.add('tool-' + selectedTool);
+  toolSelector.onchange = (e) => {
+    tools[toolSelector.value]();
+    document.body.classList.remove('tool-' + selectedTool);
+    selectedTool = toolSelector.value;
+    document.body.classList.add('tool-' + selectedTool);
   };
   canvas.oncontextmenu = e => {
     e.preventDefault();
