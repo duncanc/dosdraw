@@ -1,6 +1,13 @@
 
 const IS_LITTLE_ENDIAN = (new Uint8Array(new Uint16Array([1]).buffer)[0] === 1);
 
+export enum ModifyFlags {
+  Tile = 0x00ff,
+  ForegroundColor = 0x0f00,
+  BackgroundColor = 0xf000,
+  All = ModifyFlags.Tile | ModifyFlags.ForegroundColor | ModifyFlags.BackgroundColor,
+}
+
 export const SCREEN_WIDTH = 80;
 export const SCREEN_HEIGHT = 25;
 
@@ -52,6 +59,7 @@ type DrawChar = (ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext
 
 export default class TextModeScreen {
   constructor(public drawChar: DrawChar) {
+    this.buffer.fill(7 << 8);
     this.canvas = document.createElement('canvas');
     this.canvas.width = SCREEN_WIDTH * 8;
     this.canvas.height = SCREEN_HEIGHT * 16;
@@ -120,10 +128,14 @@ export default class TextModeScreen {
     this.buffer[y * SCREEN_WIDTH + x] = charCode | (fgColor << 8) | (bgColor << 12);
     this.updateCanvas(x, y);
   }
-  fill(charCode: number, fgColor: Color, bgColor: Color) {
-    const cc = charCode | (fgColor << 8) | (bgColor << 12);
+  setChar(x: number, y: number, charCode: number, fgColor: Color, bgColor: Color, flags = ModifyFlags.All) {
+    this.buffer[y * SCREEN_WIDTH + x] = (this.buffer[y * SCREEN_WIDTH + x] & ~flags) | ((charCode | (fgColor << 8) | (bgColor << 12)) & flags);
+    this.updateCanvas(x, y);
+  }
+  fill(charCode: number, fgColor: Color, bgColor: Color, flags = ModifyFlags.All) {
+    const cc = (charCode | (fgColor << 8) | (bgColor << 12)) & flags;
     for (let i = 0; i < this.buffer.length; i++) {
-      this.buffer[i] = cc;
+      this.buffer[i] = (this.buffer[i] & ~flags) | cc;
       this.updateCanvas(i % SCREEN_WIDTH, Math.floor(i / SCREEN_WIDTH));
     }
   }

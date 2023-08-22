@@ -3,7 +3,7 @@ import "./index.html";
 import "./favicon.png";
 import "./dosdraw.css";
 import "./chardata.png";
-import TextModeScreen, { CSSColors, Color, SCREEN_HEIGHT, SCREEN_WIDTH } from "./TextModeScreen";
+import TextModeScreen, { CSSColors, Color, ModifyFlags, SCREEN_HEIGHT, SCREEN_WIDTH } from "./TextModeScreen";
 
 const reqPromise = fetch('./chardata.png');
 
@@ -135,6 +135,31 @@ async function main() {
   if (!ctx) {
     throw new Error('unable to create canvas context');
   }
+  let flags = ModifyFlags.All;
+  document.getElementById('tile')!.onchange = e => {
+    if ((e.target as HTMLInputElement).checked) {
+      flags |= ModifyFlags.Tile;
+    }
+    else {
+      flags &= ~ModifyFlags.Tile;
+    }
+  };
+  document.getElementById('fgcolor')!.onchange = e => {
+    if ((e.target as HTMLInputElement).checked) {
+      flags |= ModifyFlags.ForegroundColor;
+    }
+    else {
+      flags &= ~ModifyFlags.ForegroundColor;
+    }
+  };
+  document.getElementById('bgcolor')!.onchange = e => {
+    if ((e.target as HTMLInputElement).checked) {
+      flags |= ModifyFlags.BackgroundColor;
+    }
+    else {
+      flags &= ~ModifyFlags.BackgroundColor;
+    }
+  };
   let colors = [7, 0, 0];
   const palette = document.querySelector('.palette') as HTMLElement;
   palette.onpointerdown = e => {
@@ -170,7 +195,7 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          screen.putChar(x, y, currentChars[button], colors[0], colors[2]);
+          screen.setChar(x, y, currentChars[button], colors[0], colors[2], flags);
           ctx.drawImage(screen.canvas, 0, 0);
           let lastX = x, lastY = y;
           function onpointermove(e: PointerEvent) {
@@ -178,7 +203,7 @@ async function main() {
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);  
             for (const [dx, dy] of bresenhamLine(lastX, lastY, x, y)) {
-              screen.putChar(dx, dy, currentChars[button], colors[0], colors[2]);
+              screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
             ctx!.drawImage(screen.canvas, 0, 0);
             lastX = x;
@@ -220,7 +245,7 @@ async function main() {
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
             for (const [dx, dy] of bresenhamLine(startX, startY, x, y)) {
-              screen.putChar(dx, dy, currentChars[button], colors[0], colors[2]);
+              screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
@@ -258,7 +283,7 @@ async function main() {
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
             for (const [dx, dy] of filledRect(startX, startY, x, y)) {
-              screen.putChar(dx, dy, currentChars[button], colors[0], colors[2]);
+              screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
@@ -296,7 +321,7 @@ async function main() {
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
             for (const [dx, dy] of emptyRect(startX, startY, x, y)) {
-              screen.putChar(dx, dy, currentChars[button], colors[0], colors[2]);
+              screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
@@ -364,7 +389,7 @@ async function main() {
     }
   };
   document.getElementById('clear-image')!.onclick = e => {
-    screen.fill(currentChars[2], colors[0], colors[2]);
+    screen.fill(currentChars[2], colors[0], colors[2], flags);
     ctx.drawImage(screen.canvas, 0, 0);
   };
 }
