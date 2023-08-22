@@ -252,6 +252,39 @@ async function main() {
         }
       };
     },
+    hbFreehand: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 160 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+          screen.putHHalf(x, y, colors[button]);
+          ctx.drawImage(screen.canvas, 0, 0);
+          let lastX = x, lastY = y;
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) return;
+            const x = Math.floor((e.clientX - rect.x) * 160 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);  
+            for (const [dx, dy] of bresenhamLine(lastX, lastY, x, y)) {
+              screen.putHHalf(dx, dy, colors[button]);
+            }
+            ctx!.drawImage(screen.canvas, 0, 0);
+            lastX = x;
+            lastY = y;
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
     lines: () => {
       canvas.onpointerdown = e => {
         if (e.pointerType === 'mouse') {
