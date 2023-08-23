@@ -4,6 +4,7 @@ import "./favicon.png";
 import "./dosdraw.css";
 import "./chardata.png";
 import TextModeScreen, { CSSColors, Color, ModifyFlags, SCREEN_HEIGHT, SCREEN_WIDTH } from "./TextModeScreen";
+import { BOXCHAR_ALL, drawBox, getBoxChar } from "./boxchars";
 
 const reqPromise = fetch('./chardata.png');
 
@@ -389,6 +390,74 @@ async function main() {
             for (const [dx, dy] of emptyRect(startX, startY, x, y)) {
               screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
+    singleBorder: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+          drawChar(ctx, x, y, getBoxChar(BOXCHAR_ALL), colors[0], colors[2]);
+          const startX = x, startY = y;
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => drawChar(ctx!, x, y, v, colors[0], colors[2] ), false);
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => screen.putChar(x, y, v, colors[0], colors[2] ), false);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
+    doubleBorder: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+          drawChar(ctx, x, y, getBoxChar(BOXCHAR_ALL), colors[0], colors[2]);
+          const startX = x, startY = y;
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => drawChar(ctx!, x, y, v, colors[0], colors[2] ), true);
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => screen.putChar(x, y, v, colors[0], colors[2] ), true);
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);

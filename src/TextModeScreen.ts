@@ -124,6 +124,9 @@ export default class TextModeScreen {
     const v = this.buffer[y * SCREEN_WIDTH + x];
     return { charCode: v & 0xff, fgColor: (v >> 8) & 0xf, bgColor: (v >> 12) & 0xf };
   }
+  getChar(x: number, y: number): number {
+    return this.buffer[y * SCREEN_WIDTH + x] & 0xff;
+  }
   putChar(x: number, y: number, charCode: number, fgColor: Color, bgColor: Color) {
     this.buffer[y * SCREEN_WIDTH + x] = charCode | (fgColor << 8) | (bgColor << 12);
     this.updateCanvas(x, y);
