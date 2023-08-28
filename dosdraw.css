@@ -112,7 +112,7 @@ body {
   display: inline-grid;
 }
 
-#editor {
+#editor-block {
   grid-row: 1;
   grid-column: 2 / 4;
 }
