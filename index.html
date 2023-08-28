@@ -27,7 +27,10 @@
         <div class="color-cell" data-value="14"></div>
         <div class="color-cell" data-value="15"></div>
       </div>
-      <canvas id="editor" width="640" height="400"></canvas>
+      <div id="editor-block" tabindex="0">
+        <div class="cursor"></div>
+        <canvas id="editor" width="640" height="400"></canvas>
+      </div>
       <div class="options">
         <button id="save-image">Save</button>
         <button id="load-image">Load</button>
@@ -48,6 +51,7 @@
           <option value="vbFreehand">V-Block Freehand</option>
           <option value="hbFreehand">H-Block Freehand</option>
           <option value="colorFloodFill">Color Flood Fill</option>
+          <option value="text">Text</option>
           <option value="singleBorder">Single Border</option>
           <option value="doubleBorder">Double Border</option>
         </select>

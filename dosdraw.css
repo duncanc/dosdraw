@@ -188,6 +188,36 @@ body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox, .tool-pic
   visibility: hidden;
 }
 
-body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox, .tool-pick) .tilemode-settings {
+body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox, .tool-pick, .tool-text) .tilemode-settings {
   display: none;
+}
+
+.cursor {
+  position: absolute;
+  z-index: 100;
+  width: 2px;
+  height: 16px;
+  background: #f88;
+  opacity: 0.5;
+  animation: blink 2s infinite;
+  pointer-events: none;
+  mix-blend-mode: difference;
+  display: none;
+}
+
+#editor-block {
+  position: relative;
+}
+
+body.tool-text #editor-block:focus .cursor {
+  display: block;
+}
+
+@keyframes blink {
+  0%, 20%, 80%, 100% {
+    opacity: 0.5;
+  }
+  25%, 75% {
+    opacity: 0;
+  }
 }
