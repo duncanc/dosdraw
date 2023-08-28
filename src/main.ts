@@ -447,6 +447,18 @@ async function main() {
   };
   let colors = [7, 0, 0];
   const palette = document.querySelector('.palette') as HTMLElement;
+  const setColorSelection = (i: number, right: boolean) => {
+    const selectionClass = right ? 'background-selected' : 'foreground-selected';
+    const selected = palette.querySelectorAll(`.${selectionClass}`); 
+    for (let i = 0; i < selected.length; i++) {
+      selected[i].classList.remove(selectionClass);
+    }
+    const colorCell = palette.querySelector(`.color-cell[data-value='${i}']`);
+    if (colorCell) {
+      colorCell.classList.add(selectionClass);
+    }
+    colors[right ? 2 : 0] = i;
+  };
   palette.onpointerdown = e => {
     if (e.pointerType !== 'mouse' || (e.button !== 0 && e.button !== 2)) {
       return;
@@ -772,6 +784,39 @@ async function main() {
         }
       };
     },
+    pick: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+          const { charCode, fgColor, bgColor } = screen.getCharInfo(x, y);
+          if (flags & ModifyFlags.Tile) selectChar(charCode, button === 2);
+          if (flags & ModifyFlags.ForegroundColor) setColorSelection(fgColor, false);
+          if (flags & ModifyFlags.BackgroundColor) setColorSelection(bgColor, true);
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            const { charCode, fgColor, bgColor } = screen.getCharInfo(x, y);
+            if (flags & ModifyFlags.Tile) selectChar(charCode, button === 2);
+            if (flags & ModifyFlags.ForegroundColor) setColorSelection(fgColor, false);
+            if (flags & ModifyFlags.BackgroundColor) setColorSelection(bgColor, true);
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
   };
   tools.freehand();
   const toolSelector = document.getElementById('tool-selector') as HTMLSelectElement;
@@ -787,6 +832,16 @@ async function main() {
     e.preventDefault();
   };
   const charPicker = document.getElementById('char-picker') as HTMLCanvasElement;
+  const leftPick = document.querySelector('.left-pick') as HTMLElement;
+  const rightPick = document.querySelector('.right-pick') as HTMLElement;
+  const selectChar = (i: number, right: boolean) => {
+    const x = i % 64;
+    const y = Math.floor(i / 64);
+    const pick = right ? rightPick : leftPick;
+    pick.style.left = `${x*8}px`;
+    pick.style.top = `${y*16}px`;
+    currentChars[right ? 2 : 0] = i;
+  };
   {
     const ctx = charPicker.getContext('2d');
     if (!ctx) {
@@ -795,18 +850,13 @@ async function main() {
     for (let i = 0; i < 256; i++) {
       drawChar(ctx, i%64, Math.floor(i/64), i, 7, 0);
     }
-    const leftPick = document.querySelector('.left-pick') as HTMLElement;
-    const rightPick = document.querySelector('.right-pick') as HTMLElement;
     charPicker.onpointerdown = e => {
       if (e.pointerType !== 'mouse' || (e.button !== 0 && e.button !== 2)) return;
       const rect = charPicker.getBoundingClientRect();
       const x = Math.floor((e.clientX - rect.x) * 64 / rect.width);
       const y = Math.floor((e.clientY - rect.y) * 4 / rect.height);
       const i = (y * 64) + x;
-      const pick = e.button === 2 ? rightPick : leftPick;
-      currentChars[e.button] = i;
-      pick.style.left = `${x*8}px`;
-      pick.style.top = `${y*16}px`;
+      selectChar(i, e.button === 2);
     };
     charPicker.oncontextmenu = e => {
       e.preventDefault();
