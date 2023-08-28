@@ -184,10 +184,10 @@ body {
   justify-content: space-between;
 }
 
-body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox) .char-picker-container {
+body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox, .tool-pick) .char-picker-container {
   visibility: hidden;
 }
 
-body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox) .tilemode-settings {
+body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox, .tool-pick) .tilemode-settings {
   display: none;
 }
