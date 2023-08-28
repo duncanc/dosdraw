@@ -488,6 +488,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
@@ -521,6 +522,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
@@ -554,6 +556,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 160 / rect.width);
@@ -587,6 +590,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
@@ -625,6 +629,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
@@ -663,6 +668,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
@@ -701,6 +707,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
@@ -735,6 +742,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
@@ -769,6 +777,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           const rect = canvas.getBoundingClientRect();
           const x = ((e.clientX - rect.x) * 80 / rect.width);
           const y = ((e.clientY - rect.y) * 25 / rect.height);
@@ -789,6 +798,7 @@ async function main() {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
           if (button !== 0 && button !== 2) return;
+          e.preventDefault();
           canvas.setPointerCapture(pointerId);
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
