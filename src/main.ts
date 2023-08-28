@@ -112,6 +112,288 @@ function openDialog() {
   });
 }
 
+const toBits = (img: ImageBitmap) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('unable to create 2D canvas');
+  ctx.drawImage(img, 0, 0);
+  const stride = img.width / 9;
+  const sliced = new Uint8Array(256 * 16);
+  for (let i = 0; i < 256; i++) {
+    const x = i % stride;
+    const y = Math.floor(i / stride);
+    const { data } = ctx.getImageData(x * 9, y * 16, 8, 16);
+    for (let j = 0; j < 16; j++) {
+      sliced[i*16 + j] = data[j * 8 * 4 + 3] ? (1 << 7) : 0;
+      sliced[i*16 + j] |= data[((j * 8) + 1) * 4 + 3] ? (1 << 6) : 0;
+      sliced[i*16 + j] |= data[((j * 8) + 2) * 4 + 3] ? (1 << 5) : 0;
+      sliced[i*16 + j] |= data[((j * 8) + 3) * 4 + 3] ? (1 << 4) : 0;
+      sliced[i*16 + j] |= data[((j * 8) + 4) * 4 + 3] ? (1 << 3) : 0;
+      sliced[i*16 + j] |= data[((j * 8) + 5) * 4 + 3] ? (1 << 2) : 0;
+      sliced[i*16 + j] |= data[((j * 8) + 5) * 4 + 3] ? (1 << 1) : 0;
+      sliced[i*16 + j] |= data[((j * 8) + 7) * 4 + 3] ? (1 << 0) : 0;
+    }
+  }
+  const chars = new Array<Uint8Array>(256);
+  for (let i = 0; i < 256; i++) {
+    chars[i] = sliced.subarray(i * 16, (i + 1) * 16);
+  }
+  return chars;
+};
+
+const rotateBits = (bits: Uint8Array[]) =>{
+  const rotated = new Uint16Array(256 * 8);
+  for (let i = 0; i < 256; i++) {
+    for (let j = 0; j < 8; j++) {
+      for (let k = 0; k < 16; k++) {
+        rotated[i*8 + j] |= ((bits[i][k] >>> (7-j)) & 1) << k;
+      }
+    }
+  }
+  const chars = new Array<Uint16Array>(256);
+  for (let i = 0; i < 256; i++) {
+    chars[i] = rotated.subarray(i * 8, (i + 1) * 8);
+  }
+  return chars;
+};
+
+/** The bits common to a and b, propagated outward to include "touching" bits of b */
+function propagatedAnd(a: number, b: number): number {
+  let result = 0;
+
+  while (a & b) {
+    const leadingZeros = Math.clz32(b);
+    const islandEnd = 32 - Math.clz32(~b << leadingZeros >>> leadingZeros);
+    const island = b >>> islandEnd << islandEnd;
+    if (island & a) {
+      result |= island;
+      a &= ~island;
+    }
+    b &= ~island;
+  }
+
+  return result;
+}
+
+const MIN_INSET = 1;
+
+function floodFill(
+  x: number, y: number,
+  getCharInfo: (x: number, y: number) => { charCode: number, bgColor: number, fgColor: number },
+  setChar: (x: number, y: number, value: number, fgColor: number, bgColor: number) => void,
+  bitPatterns: Uint8Array[],
+  bitPatternsRotated: Uint16Array[],
+  newColor: number,
+) {
+  if (x < 0 || y < 0 || x >= SCREEN_WIDTH || y >= SCREEN_HEIGHT) return;
+  const xPixel = Math.floor((x % 1) * 8);
+  const yPixel = Math.floor((y % 1) * 8);
+  x = Math.floor(x);
+  y = Math.floor(y);
+  let { charCode, bgColor, fgColor } = getCharInfo(x, y);
+  if (bgColor === fgColor || charCode === 0x20 || charCode === 0xff) {
+    charCode = 0;
+  }
+  const bitActive = Boolean(bitPatterns[charCode][yPixel] & (0x80 >>> xPixel));
+  const fillingColor = bitActive ? fgColor : bgColor;
+  const toVisit = new Array<{x: number, y: number, side: 'top' | 'left' | 'bottom' | 'right', mask: number}>();
+  const xorMask8 = bitActive ? 0x00 : 0xff;
+  const xorMask16 = bitActive ? 0x0000 : 0xffff;
+  const vMask = propagatedAnd(0x80 >>> xPixel, bitPatterns[charCode][yPixel] ^ xorMask8);
+  const hMask = propagatedAnd(0x8000 >>> yPixel, bitPatternsRotated[charCode][xPixel] ^ xorMask16);
+  testUp: {
+    if (y === 0) break testUp;
+    let tempMask = vMask;
+    for (let yb = yPixel - 1; yb >= 0; yb--) {
+      tempMask = propagatedAnd(tempMask, bitPatterns[charCode][yb] ^ xorMask8);
+      if (tempMask === 0) break testUp;
+    }
+    toVisit.push({x, y:y-1, side:'bottom', mask:tempMask});
+  }
+  testDown: {
+    if (y === SCREEN_HEIGHT-1) break testDown;
+    let tempMask = vMask;
+    for (let yb = yPixel + 1; yb < 8; yb++) {
+      tempMask = propagatedAnd(tempMask, bitPatterns[charCode][yb] ^ xorMask8);
+      if (tempMask === 0) break testDown;
+    }
+    toVisit.push({x, y:y+1, side:'top', mask:tempMask});
+  }
+  testLeft: {
+    if (x === 0) break testLeft;
+    let tempMask = hMask;
+    for (let xb = xPixel - 1; xb >= 0; xb--) {
+      tempMask = propagatedAnd(tempMask, bitPatternsRotated[charCode][xb] ^ xorMask16);
+      if (tempMask === 0) {
+        break testLeft;
+      }
+    }
+    toVisit.push({x:x-1, y, side:'right', mask:tempMask});
+  }
+  testRight: {
+    if (x === SCREEN_WIDTH-1) break testRight;
+    let tempMask = hMask;
+    for (let xb = xPixel + 1; xb < 8; xb++) {
+      tempMask = propagatedAnd(tempMask, bitPatternsRotated[charCode][xb] ^ xorMask16);
+      if (tempMask === 0) {
+        break testRight;
+      }
+    }
+    toVisit.push({x:x+1, y, side:'left', mask:tempMask});
+  }
+  if (bitActive) {
+    setChar(x, y, charCode, newColor, bgColor);
+  }
+  else {
+    setChar(x, y, charCode, fgColor, newColor);
+  }
+  const visited = new Set<`${number},${number}`>([`${x},${y}`]);
+  while (toVisit.length > 0) {
+    let { x, y, side, mask } = toVisit.pop()!;
+    let { charCode, bgColor, fgColor } = getCharInfo(x, y);
+    if ((bgColor !== fillingColor && fgColor !== fillingColor) || charCode === 0xB1 || (charCode === 0xB0 && bgColor !== fillingColor) || (charCode === 0xB2 && fgColor !== fillingColor)) {
+      visited.add(`${x},${y}`);
+      continue;
+    }
+    if (fgColor === bgColor || charCode === 0x20 || charCode === 0xff) {
+      charCode = 0;
+    }
+    const xorMask8 = bgColor === fillingColor ? 0xff : 0x00;
+    const xorMask16 = bgColor === fillingColor ? 0xffff : 0x0000;
+    switch (side) {
+      case 'top': {
+        let i = 0, leftMask = 0, rightMask = 0;
+        for (i = 0; i < 16; i++) {
+          mask = propagatedAnd(mask, bitPatterns[charCode][i] ^ xorMask8);
+          if (mask === 0) break;
+          if (mask & 0x80) {
+            leftMask |= propagatedAnd(1 << i, bitPatternsRotated[charCode][0] ^ xorMask16);
+          }
+          if (mask & 0x01) {
+            rightMask |= propagatedAnd(1 << i, bitPatternsRotated[charCode][7] ^ xorMask16);
+          }
+        }
+        if (i > (MIN_INSET-1)) {
+          if (mask && y !== (SCREEN_HEIGHT-1) && !visited.has(`${x},${y+1}`)) {
+            toVisit.push({x, y:y+1, side:'top', mask });
+          }
+          if (leftMask && x !== 0 && !visited.has(`${x-1},${y}`)) {
+            toVisit.push({x:x-1, y, side:'right', mask:leftMask});
+          }
+          if (rightMask && x !== (SCREEN_WIDTH-1) && !visited.has(`${x+1},${y}`)) {
+            toVisit.push({x:x+1, y, side:'left', mask:rightMask});
+          }
+          if (bgColor === fillingColor) {
+            setChar(x, y, charCode, fgColor, newColor);
+          }
+          else {
+            setChar(x, y, charCode, newColor, bgColor);
+          }
+          visited.add(`${x},${y}`);
+        }
+        break;
+      }
+      case 'bottom': {
+        let i = 0, leftMask = 0, rightMask = 0;
+        for (i = 15; i >= 0; i--) {
+          mask = propagatedAnd(mask, bitPatterns[charCode][i] ^ xorMask8);
+          if (mask === 0) break;
+          if (mask & 0x80) {
+            leftMask |= propagatedAnd(1 << i, bitPatternsRotated[charCode][0] ^ xorMask16);
+          }
+          if (mask & 0x01) {
+            rightMask |= propagatedAnd(1 << i, bitPatternsRotated[charCode][7] ^ xorMask16);
+          }
+        }
+        if (i < (16-MIN_INSET)) {
+          if (mask && y !== 0 && !visited.has(`${x},${y-1}`)) {
+            toVisit.push({x, y:y-1, side:'bottom', mask });
+          }
+          if (leftMask && x !== 0 && !visited.has(`${x-1},${y}`)) {
+            toVisit.push({x:x-1, y, side:'right', mask:leftMask});
+          }
+          if (rightMask && x !== (SCREEN_WIDTH-1) && !visited.has(`${x+1},${y}`)) {
+            toVisit.push({x:x+1, y, side:'left', mask:rightMask});
+          }
+          if (bgColor === fillingColor) {
+            setChar(x, y, charCode, fgColor, newColor);
+          }
+          else {
+            setChar(x, y, charCode, newColor, bgColor);
+          }
+          visited.add(`${x},${y}`);
+        }
+        break;
+      }
+      case 'left': {
+        let i = 0, topMask = 0, bottomMask = 0;
+        for (i = 0; i < 8; i++) {
+          mask = propagatedAnd(mask, bitPatternsRotated[charCode][i] ^ xorMask16);
+          if (mask === 0) break;
+          if (mask & 0x8000) {
+            bottomMask |= propagatedAnd(0x80 >> i, bitPatterns[charCode][15] ^ xorMask8);
+          }
+          if (mask & 0x0001) {
+            topMask |= propagatedAnd(0x80 >> i, bitPatterns[charCode][0] ^ xorMask8);
+          }
+        }
+        if (i > (MIN_INSET-1)) {
+          if (mask && x !== (SCREEN_WIDTH-1) && !visited.has(`${x+1},${y}`)) {
+            toVisit.push({x:x+1, y, side:'left', mask });
+          }
+          if (topMask && y !== 0 && !visited.has(`${x},${y-1}`)) {
+            toVisit.push({x, y:y-1, side:'bottom', mask:topMask});
+          }
+          if (bottomMask && y !== (SCREEN_HEIGHT-1) && !visited.has(`${x},${y+1}`)) {
+            toVisit.push({x, y:y+1, side:'top', mask:bottomMask});
+          }
+          if (bgColor === fillingColor) {
+            setChar(x, y, charCode, fgColor, newColor);
+          }
+          else {
+            setChar(x, y, charCode, newColor, bgColor);
+          }
+          visited.add(`${x},${y}`);
+        }
+        break;
+      }
+      case 'right': {
+        let i = 0, topMask = 0, bottomMask = 0;
+        for (i = 7; i >= 0; i--) {
+          mask = propagatedAnd(mask, bitPatternsRotated[charCode][i] ^ xorMask16);
+          if (mask === 0) break;
+          if (mask & 0x8000) {
+            bottomMask |= propagatedAnd(0x80 >> i, bitPatterns[charCode][15] ^ xorMask8);
+          }
+          if (mask & 0x0001) {
+            topMask |= propagatedAnd(0x80 >> i, bitPatterns[charCode][0] ^ xorMask8);
+          }
+        }
+        if (i < (8-MIN_INSET)) {
+          if (mask && x !== 0 && !visited.has(`${x-1},${y}`)) {
+            toVisit.push({x:x-1, y, side:'right', mask });
+          }
+          if (topMask && y !== 0 && !visited.has(`${x},${y-1}`)) {
+            toVisit.push({x, y:y-1, side:'bottom', mask:topMask});
+          }
+          if (bottomMask && y !== (SCREEN_HEIGHT-1) && !visited.has(`${x},${y+1}`)) {
+            toVisit.push({x, y:y+1, side:'top', mask:bottomMask});
+          }
+          if (bgColor === fillingColor) {
+            setChar(x, y, charCode, fgColor, newColor);
+          }
+          else {
+            setChar(x, y, charCode, newColor, bgColor);
+          }
+          visited.add(`${x},${y}`);
+        }
+        break;
+      }
+    }
+  }
+}
 
 async function main() {
   const req = await reqPromise;
@@ -130,6 +412,8 @@ async function main() {
     ctx.fillRect(x * 8, y * 16, 8, 16);
     ctx.restore();
   };
+  const bitPatterns = toBits(ib);
+  const bitPatternsRotated = rotateBits(bitPatterns);
   const screen = new TextModeScreen(drawChar);
   const canvas = document.getElementById('editor') as HTMLCanvasElement;
   const ctx = canvas.getContext('2d');
@@ -465,6 +749,26 @@ async function main() {
           }
           canvas.addEventListener('pointermove', onpointermove);
           canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
+    colorFloodFill: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          const rect = canvas.getBoundingClientRect();
+          const x = ((e.clientX - rect.x) * 80 / rect.width);
+          const y = ((e.clientY - rect.y) * 25 / rect.height);
+          floodFill(
+            x, y,
+            (x, y) => screen.getCharInfo(x, y),
+            (x, y, v, fg, bg) => screen.putChar(x, y, v, fg, bg),
+            bitPatterns,
+            bitPatternsRotated,
+            colors[button]);
+          ctx!.globalCompositeOperation = 'copy';
+          ctx!.drawImage(screen.canvas, 0, 0);
         }
       };
     },
