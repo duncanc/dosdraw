@@ -1118,6 +1118,133 @@ async function main() {
         editorBlock.removeEventListener('keydown', onkeydown);
       };
     },
+    gradientBox: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0 && button !== 2) return;
+          const gradient = getGradient();
+          if (gradient.length === 0) return;
+          e.preventDefault();
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+          if (gradient.length % 2) {
+            drawChar(ctx, x, y, 0xB2, gradient[Math.floor(gradient.length/2)], gradient[Math.floor(gradient.length/2)+1]);
+          }
+          else {
+            drawChar(ctx, x, y, 0xDB, gradient[gradient.length/2], 0);
+          }
+          const startX = x, startY = y;
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            const [minX, maxX] = startX < x ? [startX, x+1] : [x, startX+1];
+            const [minY, maxY] = startY < y ? [startY, y+1] : [y, startY+1];
+            for (const [dx, dy] of filledRect(startX, startY, x, y)) {
+              const ratio = (dy - minY) / (maxY - minY);
+              const { charCode, fgColor, bgColor } = calcGradientCharInfo(gradient, ratio);
+              drawChar(ctx!, dx, dy, charCode, fgColor, bgColor);
+            }
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            const [minX, maxX] = startX < x ? [startX, x+1] : [x, startX+1];
+            const [minY, maxY] = startY < y ? [startY, y+1] : [y, startY+1];
+            for (const [dx, dy] of filledRect(startX, startY, x, y)) {
+              const ratio = (dy - minY) / (maxY - minY);
+              const { charCode, fgColor, bgColor } = calcGradientCharInfo(gradient, ratio);
+              screen.setChar(dx, dy, charCode, fgColor, bgColor, flags);
+            }
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
+  };
+  {
+    const addGradientSlotButton = document.getElementById('add-gradient-slot')!;
+    const gradientSlotTemplate = (document.getElementById('gradient-slot-template') as HTMLTemplateElement).content.querySelector('.gradient-slot') as HTMLElement;
+    const gradientSlots = document.querySelector('.gradient-slots') as HTMLElement;
+    const addGradientColor = (i: number) => {
+      const slot = gradientSlotTemplate.cloneNode(true) as HTMLElement;
+      slot.dataset.value = String(i);
+      (slot.querySelector('.remove-gradient-slot') as HTMLElement).onclick = () => {
+        gradientSlots.removeChild(slot);
+      };
+      gradientSlots.insertBefore(slot, addGradientSlotButton);
+    };
+    addGradientSlotButton.onclick = () => {
+      addGradientColor(colors[0]);
+    };
+    addGradientColor(0);
+    addGradientColor(8);
+    addGradientColor(7);
+    addGradientColor(15);
+  }
+  const getGradient = (): number[] => {
+    const nodes = document.querySelectorAll('.gradient-slots .gradient-slot');
+    const gradient: number[] = [];
+    for (let i = 0; i < nodes.length; i++) {
+      gradient.push(Number((nodes[i] as HTMLElement).dataset.value));
+    }
+    return gradient;
+  };
+  const calcGradientCharInfo = (g: number[], ratio: number): { charCode: number, fgColor: number, bgColor: number } => {
+    if (g.length < 2) return { charCode: 0xDB, fgColor: g[0] || 0, bgColor: 0};
+    ratio = Math.max(0, Math.min(1, Number(ratio) || 0));
+    ratio *= g.length;
+    const intPart = Math.floor(ratio);
+    if (intPart >= g.length-1) {
+      return { charCode: 0xDB, fgColor: g[g.length-1], bgColor: 0 };
+    }
+    const fracPart = ratio - intPart;
+    if (fracPart < 0.125) {
+      return {
+        charCode: 0x00,
+        fgColor: g[intPart+1],
+        bgColor: g[intPart],
+      }
+    }
+    else if (fracPart < 0.375) {
+      return {
+        charCode: 0xB0,
+        fgColor: g[intPart+1],
+        bgColor: g[intPart],
+      };
+    }
+    else if (fracPart < 0.625) {
+      return {
+        charCode: 0xB1,
+        fgColor: g[intPart+1],
+        bgColor: g[intPart],
+      };
+    }
+    else if (fracPart < 0.875) {
+      return {
+        charCode: 0xB2,
+        fgColor: g[intPart+1],
+        bgColor: g[intPart],
+      };
+    }
+    else {
+      return {
+        charCode: 0xDB,
+        fgColor: g[intPart+1],
+        bgColor: 0,
+      };
+    }
   };
   let unloadTool: (() => void) | void;
   unloadTool = tools.freehand();

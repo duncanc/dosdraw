@@ -36,10 +36,23 @@
         <button id="load-image">Load</button>
         <button id="clear-image">Clear</button>
       </div>
-      <div class="char-picker-container">
-        <canvas id="char-picker" width="512" height="64"></canvas>
-        <div class="left-pick"></div>
-        <div class="right-pick"></div>
+      <div class="tool-options-container">
+        <div class="char-picker-container">
+          <canvas id="char-picker" width="512" height="64"></canvas>
+          <div class="left-pick"></div>
+          <div class="right-pick"></div>
+        </div>
+        <div class="gradient-container">
+          <template id="gradient-slot-template">
+            <div class="gradient-slot" data-value="0">
+              <div class="gradient-color"></div>
+              <button class="remove-gradient-slot">X</button>
+            </div>
+          </template>
+          <div class="gradient-slots">
+            <button id="add-gradient-slot">+</button>
+          </div>
+        </div>
       </div>
       <div class="tool">
         <select id="tool-selector">
@@ -54,6 +67,7 @@
           <option value="text">Text</option>
           <option value="singleBorder">Single Border</option>
           <option value="doubleBorder">Double Border</option>
+          <option value="gradientBox">Gradient Box</option>
         </select>
         <div class="tilemode-settings">
           <label title="Affect tile">
