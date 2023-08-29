@@ -1041,7 +1041,6 @@ async function main() {
         }
       };      
       function onkeydown(e: KeyboardEvent) {
-        console.log(e.key);
         if (e.key === 'Tab') return;
         e.preventDefault();
         e.stopPropagation();
