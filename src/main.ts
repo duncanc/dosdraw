@@ -430,7 +430,7 @@ const codepageChars = [
   0x25B2,
   0x25BC,
 
-  ...Array.from({ length: 0xFF - 0x20 }, (_, i) => 0x20 + i),
+  ...Array.from({ length: 0x7F - 0x20 }, (_, i) => 0x20 + i),
   0x2302,
 
   0x00C7,
