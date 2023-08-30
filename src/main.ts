@@ -1160,7 +1160,7 @@ async function main() {
             for (const [dx, dy] of filledRect(startX, startY, x, y)) {
               const ratio = (dy - minY) / (maxY - minY);
               const { charCode, fgColor, bgColor } = calcGradientCharInfo(gradient, ratio);
-              screen.setChar(dx, dy, charCode, fgColor, bgColor, flags);
+              screen.putChar(dx, dy, charCode, fgColor, bgColor);
             }
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
