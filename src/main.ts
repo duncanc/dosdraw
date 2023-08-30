@@ -1173,6 +1173,168 @@ async function main() {
         }
       };
     },
+    spraypaint: () => {
+      canvas.onpointerdown = e => {
+        const { pointerId, pointerType, button } = e;
+        if (pointerType === 'mouse' && button === 0) {
+          const gradient = getGradient();
+          if (gradient.length === 0) return;
+          const sprayfield = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+          sprayfield.fill(-1);
+          const rect = canvas.getBoundingClientRect();
+          let lastTime = performance.now();
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) {
+              return;
+            }
+            const time = performance.now();
+            const timeDiff = time - lastTime;
+            lastTime = time;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            const { charCode, fgColor, bgColor } = screen.getCharInfo(x, y);
+            const i = y*SCREEN_WIDTH + x;
+            if (sprayfield[i] === -1) {
+              if (fgColor === bgColor) {
+                const pos = gradient.indexOf(bgColor);
+                sprayfield[i] = gradient[pos === -1 ? 0 : pos];
+              }
+              else switch (charCode) {
+                case 0x00: case 0x20: case 0xFF: {
+                  const pos = gradient.indexOf(bgColor);
+                  sprayfield[i] = gradient[pos === -1 ? 0 : pos];
+                  break;
+                }
+                case 0x08: case 0x0A: case 0xDB: {
+                  const pos = gradient.indexOf(fgColor);
+                  sprayfield[i] = gradient[pos === -1 ? 0 : pos];
+                  break;
+                }
+                case 0xB0: {
+                  const bgPos = gradient.indexOf(bgColor);
+                  const fgPos = gradient.indexOf(fgColor);
+                  if (bgPos === -1) {
+                    if (fgPos === -1) {
+                      sprayfield[i] = 0;
+                    }
+                    else {
+                      sprayfield[i] = Math.max(0, fgPos - 0.5);
+                    }
+                  }
+                  else if (fgPos === -1) {
+                    sprayfield[i] = Math.max(0, bgPos - 0.5);
+                  }
+                  else if (bgPos === fgPos - 1) {
+                    sprayfield[i] = bgPos + 0.25;
+                  }
+                  else if (fgPos === bgPos - 1) {
+                    sprayfield[i] = fgPos + 0.75;
+                  }
+                  else {
+                    sprayfield[i] = Math.max(0, Math.min(fgPos, bgPos) + 0.25);
+                  }
+                  break;
+                }
+                case 0xB1: {
+                  const bgPos = gradient.indexOf(bgColor);
+                  const fgPos = gradient.indexOf(fgColor);
+                  if (bgPos === -1) {
+                    if (fgPos === -1) {
+                      sprayfield[i] = 0;
+                    }
+                    else {
+                      sprayfield[i] = Math.max(0, fgPos - 0.5);
+                    }
+                  }
+                  else if (fgPos === -1) {
+                    sprayfield[i] = Math.max(0, bgPos - 0.5);
+                  }
+                  else if (bgPos === fgPos - 1) {
+                    sprayfield[i] = bgPos + 0.5;
+                  }
+                  else if (fgPos === bgPos - 1) {
+                    sprayfield[i] = fgPos + 0.5;
+                  }
+                  else {
+                    sprayfield[i] = Math.max(0, Math.min(fgPos, bgPos) + 0.5);
+                  }
+                  break;
+                }
+                case 0xB2: {
+                  const bgPos = gradient.indexOf(bgColor);
+                  const fgPos = gradient.indexOf(fgColor);
+                  if (bgPos === -1) {
+                    if (fgPos === -1) {
+                      sprayfield[i] = 0;
+                    }
+                    else {
+                      sprayfield[i] = Math.max(0, fgPos - 0.5);
+                    }
+                  }
+                  else if (fgPos === -1) {
+                    sprayfield[i] = Math.max(0, bgPos - 0.5);
+                  }
+                  else if (bgPos === fgPos - 1) {
+                    sprayfield[i] = bgPos + 0.75;
+                  }
+                  else if (fgPos === bgPos - 1) {
+                    sprayfield[i] = fgPos + 0.25;
+                  }
+                  else {
+                    sprayfield[i] = Math.max(0, Math.min(fgPos, bgPos) + 0.5);
+                  }
+                  break;
+                }
+                default: {
+                  let pos = gradient.indexOf(bgColor);
+                  if (pos === -1) pos = gradient.indexOf(fgColor);
+                  sprayfield[i] = pos + 0.5;
+                  break;
+                }
+              }     
+            }
+            sprayfield[i] += timeDiff/100;
+            let newChar: number, newFG: number, newBG: number;
+            if (sprayfield[i] >= gradient.length-1) {
+              newChar = 0xDB; newFG = gradient[gradient.length-1]; newBG = 0;
+            }
+            else {
+              const intPart = Math.floor(sprayfield[i]);
+              const fracPart = sprayfield[i] - intPart;
+              if (fracPart < 0.125) {
+                newChar = 0xDB; newFG = gradient[intPart]; newBG = 0;
+              }
+              else if (fracPart < 0.375) {
+                newChar = 0xB0; newFG = gradient[intPart+1]; newBG = gradient[intPart];
+              }
+              else if (fracPart < 0.625) {
+                newChar = 0xB1; newFG = gradient[intPart+1]; newBG = gradient[intPart];
+              }
+              else if (fracPart < 0.875) {
+                newChar = 0xB2; newFG = gradient[intPart+1]; newBG = gradient[intPart];
+              }
+              else {
+                newChar = 0xDB; newFG = gradient[intPart+1]; newBG = gradient[intPart];
+              }
+            }
+            if (newChar !== charCode || newFG !== fgColor || newBG !== bgColor) {
+              screen.putChar(x, y, newChar, newFG, newBG);
+              ctx!.globalCompositeOperation = 'copy';
+              ctx!.drawImage(screen.canvas, 0, 0);
+            }
+        }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) {
+              return;
+            }
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
   };
   {
     const addGradientSlotButton = document.getElementById('add-gradient-slot')!;
