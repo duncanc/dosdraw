@@ -1130,23 +1130,24 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          if (gradient.length % 2) {
-            drawChar(ctx, x, y, 0xB2, gradient[Math.floor(gradient.length/2)], gradient[Math.floor(gradient.length/2)+1]);
-          }
-          else {
-            drawChar(ctx, x, y, 0xDB, gradient[gradient.length/2], 0);
-          }
+          drawChar(ctx, x, y, 0xDB, gradient[0], 0);
           const startX = x, startY = y;
+          const dirSelector = document.getElementById('gradient-direction-selector') as HTMLSelectElement;
+          const getRatio: (x: number, y: number, minX: number, maxX: number, minY: number, maxY: number) => number
+            = (dirSelector.value === 'up')      ?    (x, y, minX, maxX, minY, maxY) => (y - maxY) / (minY - maxY)
+            : (dirSelector.value === 'right')    ?    (x, y, minX, maxX, minY, maxY) => (x - minX) / (maxX - minX)
+            : (dirSelector.value === 'left')   ?    (x, y, minX, maxX, minY, maxY) => (x - maxX) / (minX - maxX)
+            : /* (sideSelector.value === 'down') ? */ (x, y, minX, maxX, minY, maxY) => (y - minY) / (maxY - minY);
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
-            const [minX, maxX] = startX < x ? [startX, x+1] : [x, startX+1];
-            const [minY, maxY] = startY < y ? [startY, y+1] : [y, startY+1];
+            const [minX, maxX] = startX < x ? [startX, x] : [x, startX];
+            const [minY, maxY] = startY < y ? [startY, y] : [y, startY];
             for (const [dx, dy] of filledRect(startX, startY, x, y)) {
-              const ratio = (dy - minY) / (maxY - minY);
+              const ratio = getRatio(dx, dy, minX, maxX, minY, maxY);
               const { charCode, fgColor, bgColor } = calcGradientCharInfo(gradient, ratio);
               drawChar(ctx!, dx, dy, charCode, fgColor, bgColor);
             }
@@ -1155,10 +1156,10 @@ async function main() {
             if (e.pointerId !== pointerId || e.button !== button) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            const [minX, maxX] = startX < x ? [startX, x+1] : [x, startX+1];
-            const [minY, maxY] = startY < y ? [startY, y+1] : [y, startY+1];
+            const [minX, maxX] = startX < x ? [startX, x] : [x, startX];
+            const [minY, maxY] = startY < y ? [startY, y] : [y, startY];
             for (const [dx, dy] of filledRect(startX, startY, x, y)) {
-              const ratio = (dy - minY) / (maxY - minY);
+              const ratio = getRatio(dx, dy, minX, maxX, minY, maxY);
               const { charCode, fgColor, bgColor } = calcGradientCharInfo(gradient, ratio);
               screen.putChar(dx, dy, charCode, fgColor, bgColor);
             }
