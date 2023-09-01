@@ -659,7 +659,7 @@ async function main() {
     e.preventDefault();
   };
   let currentChars = [219, 0, 0];
-  let cursorX = 0, cursorY = 0;
+  let cursorX = 0, cursorY = 0, cursorLineStart = 0;
   const cursorElement = document.querySelector('.cursor') as HTMLElement;
   const setCursorPosition = (x: number, y: number) => {
     cursorElement.style.left = `${x * 8}px`;
@@ -1034,6 +1034,7 @@ async function main() {
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
           setCursorPosition(x, y);
+          cursorLineStart = x;
           editorBlock.focus();
         }
       };
@@ -1070,6 +1071,9 @@ async function main() {
               }
             }
             else {
+              if ((cursorX-1) < cursorLineStart) {
+                cursorLineStart = cursorX-1;
+              }
               setCursorPosition(cursorX-1, cursorY);
             }
             return;
@@ -1086,7 +1090,7 @@ async function main() {
             return;
           }
           case 'Enter': {
-            setCursorPosition(0, Math.min(SCREEN_HEIGHT-1, cursorY+1));
+            setCursorPosition(cursorLineStart, Math.min(SCREEN_HEIGHT-1, cursorY+1));
             return;
           }
           case 'End': case 'PageDown': {
@@ -1104,6 +1108,9 @@ async function main() {
               }
             }
             else {
+              if ((cursorX-1) < cursorLineStart) {
+                cursorLineStart = cursorX-1;
+              }
               setCursorPosition(cursorX-1, cursorY);
             }
             screen.setChar(cursorX, cursorY, 0, colors[0], colors[2], flags);
