@@ -668,8 +668,10 @@ async function main() {
     cursorY = y;
   };
   const editorBlock = document.querySelector('#editor-block') as HTMLElement;
+  let lastTileTool = 'freehand';
   const tools: {[toolName: string]: () => (() => void) | void} = {
     freehand: () => {
+      lastTileTool = 'freehand';
       canvas.onpointerdown = e => {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
@@ -772,6 +774,7 @@ async function main() {
       };
     },
     lines: () => {
+      lastTileTool = 'lines';
       canvas.onpointerdown = e => {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
@@ -811,6 +814,7 @@ async function main() {
       };
     },
     filledBox: () => {
+      lastTileTool = 'filledBox';
       canvas.onpointerdown = e => {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
@@ -850,6 +854,7 @@ async function main() {
       };
     },
     emptyBox: () => {
+      lastTileTool = 'emptyBox';
       canvas.onpointerdown = e => {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
@@ -994,7 +999,7 @@ async function main() {
           if (flags & ModifyFlags.ForegroundColor) setColorSelection(fgColor, false);
           if (flags & ModifyFlags.BackgroundColor) setColorSelection(bgColor, true);
           function onpointermove(e: PointerEvent) {
-            if (e.pointerId !== pointerId || e.button !== button) return;
+            if (e.pointerId !== pointerId) return;
             const rect = canvas.getBoundingClientRect();
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
@@ -1007,6 +1012,8 @@ async function main() {
             if (e.pointerId !== pointerId || e.button !== button) return;
             canvas.removeEventListener('pointermove', onpointermove);
             canvas.removeEventListener('pointerup', onpointerup);
+            toolSelector.value = lastTileTool;
+            toolSelector.dispatchEvent(new Event("change"));
           }
           canvas.addEventListener('pointermove', onpointermove);
           canvas.addEventListener('pointerup', onpointerup);
