@@ -1384,7 +1384,7 @@ async function main() {
   const calcGradientCharInfo = (g: number[], ratio: number): { charCode: number, fgColor: number, bgColor: number } => {
     if (g.length < 2) return { charCode: 0xDB, fgColor: g[0] || 0, bgColor: 0};
     ratio = Math.max(0, Math.min(1, Number(ratio) || 0));
-    ratio *= g.length;
+    ratio *= g.length - 1;
     const intPart = Math.floor(ratio);
     if (intPart >= g.length-1) {
       return { charCode: 0xDB, fgColor: g[g.length-1], bgColor: 0 };
