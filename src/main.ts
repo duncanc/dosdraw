@@ -1293,7 +1293,7 @@ async function main() {
                 }
               }     
             }
-            sprayfield[i] += timeDiff/100;
+            sprayfield[i] += Math.min(0.25, timeDiff/100);
             let newChar: number, newFG: number, newBG: number;
             if (sprayfield[i] >= gradient.length-1) {
               newChar = 0xDB; newFG = gradient[gradient.length-1]; newBG = 0;
