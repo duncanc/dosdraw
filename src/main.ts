@@ -1214,17 +1214,17 @@ async function main() {
             if (sprayfield[i] === -1) {
               if (fgColor === bgColor) {
                 const pos = gradient.indexOf(bgColor);
-                sprayfield[i] = gradient[pos === -1 ? 0 : pos];
+                sprayfield[i] = pos === -1 ? 0 : pos;
               }
               else switch (charCode) {
                 case 0x00: case 0x20: case 0xFF: {
                   const pos = gradient.indexOf(bgColor);
-                  sprayfield[i] = gradient[pos === -1 ? 0 : pos];
+                  sprayfield[i] = pos === -1 ? 0 : pos;
                   break;
                 }
                 case 0x08: case 0x0A: case 0xDB: {
                   const pos = gradient.indexOf(fgColor);
-                  sprayfield[i] = gradient[pos === -1 ? 0 : pos];
+                  sprayfield[i] = pos === -1 ? 0 : pos;
                   break;
                 }
                 case 0xB0: {
@@ -1308,7 +1308,7 @@ async function main() {
                   sprayfield[i] = pos + 0.5;
                   break;
                 }
-              }     
+              }
             }
             sprayfield[i] += Math.min(0.25, timeDiff/100);
             let newChar: number, newFG: number, newBG: number;
