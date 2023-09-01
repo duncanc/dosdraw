@@ -287,3 +287,11 @@ body.tool-text #editor-block:focus .cursor {
 .gradient-slot[data-value="13"] .gradient-color { background-color: #f0f; }
 .gradient-slot[data-value="14"] .gradient-color { background-color: #ff0; }
 .gradient-slot[data-value="15"] .gradient-color { background-color: #fff; }
+
+#editor {
+  cursor: crosshair;
+}
+
+body.tool-text #editor {
+  cursor: text;
+}
