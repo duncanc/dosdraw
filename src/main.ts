@@ -664,6 +664,9 @@ async function main() {
   const setCursorPosition = (x: number, y: number) => {
     cursorElement.style.left = `${x * 8}px`;
     cursorElement.style.top = `${y * 16}px`;
+    cursorElement.style.animation = 'none';
+    cursorElement.getBoundingClientRect();
+    cursorElement.style.removeProperty('animation');
     cursorX = x;
     cursorY = y;
   };
