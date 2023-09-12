@@ -1303,6 +1303,61 @@ async function main() {
         }
       };
     },
+    rainbowBrush: () => {
+      canvas.onpointerdown = e => {
+        if (e.pointerType === 'mouse') {
+          const { button, pointerId } = e;
+          if (button !== 0) return;
+          e.preventDefault();
+          const gradient = getGradient();
+          const gradientLength = gradient.length;
+          if (gradientLength === 0) return;
+          gradient.push(gradient[0]);
+          canvas.setPointerCapture(pointerId);
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+          const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+          screenOverlay.setChar(x, y, 0xDB, gradient[0], gradient[0]);
+          let pos = 0;
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
+          let lastX = x, lastY = y;
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) return;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            if (x !== lastX || y !== lastY) {
+              let first = true;
+              for (const [dx, dy] of bresenhamLine(lastX, lastY, x, y)) {
+                if (first) {
+                  first = false;
+                  continue;
+                }
+                pos = (pos + 0.25) % gradientLength;
+                const { charCode, fgColor, bgColor } = calcGradientCharInfo(gradient, pos / gradientLength);
+                screenOverlay.setChar(dx, dy, charCode, fgColor, bgColor);
+              }
+            }
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            lastX = x;
+            lastY = y;
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) return;
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
     spraypaint: () => {
       canvas.onpointerdown = e => {
         const { pointerId, pointerType, button } = e;
