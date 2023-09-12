@@ -1219,8 +1219,23 @@ async function main() {
           e.stopPropagation();
         }
       }
+      function onpaste(e: ClipboardEvent) {
+        const pasted = e.clipboardData?.getData('text');
+        if (pasted) {
+          e.preventDefault();
+          for (const c of pasted.replace(/\r\n?|\n\r/g, '\n')) {
+            if (c === '\n') {
+              setCursorPosition(cursorLineStart, Math.min(SCREEN_HEIGHT-1, cursorY+1));
+            }
+            else {
+              type(codepageMap.get(c) ?? 63);
+            }
+          }
+        }
+      }
       editorBlock.addEventListener('keydown', onkeydown);
       editorBlock.addEventListener('keyup', onkeyup);
+      document.addEventListener('paste', onpaste);
       return () => {
         editorBlock.onblur = null;
         screenOverlay.commit();
@@ -1230,6 +1245,7 @@ async function main() {
         ctx.drawImage(screen.canvas, 0, 0);
         editorBlock.removeEventListener('keydown', onkeydown);
         editorBlock.removeEventListener('keyup', onkeyup);
+        document.removeEventListener('paste', onpaste);
       };
     },
     gradientBox: () => {
