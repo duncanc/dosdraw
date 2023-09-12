@@ -57,6 +57,8 @@ export const CSSColors = [
 
 type DrawChar = (ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, x: number, y: number, i: number, fgColor: Color, bgColor: Color) => void;
 
+const OFFSCREEN = (x: number, y: number) => x < 0 || y < 0 || x >= SCREEN_WIDTH || y >= SCREEN_HEIGHT;
+
 export default class TextModeScreen {
   constructor(public drawChar: DrawChar) {
     this.buffer.fill(7 << 8);
@@ -116,34 +118,43 @@ export default class TextModeScreen {
       }
     }
   }
+  getRawChar(x: number, y: number) {
+    return this.buffer[y * SCREEN_WIDTH + x] || 0;
+  }
+  setRawChar(x: number, y: number, c: number) {
+    if (OFFSCREEN(x, y)) return;
+    this.buffer[y * SCREEN_WIDTH + x] = c;    
+  }
   updateCanvas(x: number, y: number) {
-    const v = this.buffer[y * SCREEN_WIDTH + x];
+    if (OFFSCREEN(x, y)) return;
+    const v = this.getRawChar(x, y);
     this.drawChar(this.ctx, x, y, v & 0xff, (v >> 8) & 0xf, (v >> 12) & 0xf);
   }
   getCharInfo(x: number, y: number): { charCode: number, fgColor: Color, bgColor: Color } {
-    const v = this.buffer[y * SCREEN_WIDTH + x];
+    const v = this.getRawChar(x, y);
     return { charCode: v & 0xff, fgColor: (v >> 8) & 0xf, bgColor: (v >> 12) & 0xf };
   }
   getChar(x: number, y: number): number {
-    return this.buffer[y * SCREEN_WIDTH + x] & 0xff;
+    return this.getRawChar(x, y) & 0xff;
   }
   putChar(x: number, y: number, charCode: number, fgColor: Color, bgColor: Color) {
-    this.buffer[y * SCREEN_WIDTH + x] = charCode | (fgColor << 8) | (bgColor << 12);
+    this.setRawChar(x, y, charCode | (fgColor << 8) | (bgColor << 12));
     this.updateCanvas(x, y);
   }
   setChar(x: number, y: number, charCode: number, fgColor: Color, bgColor: Color, flags = ModifyFlags.All) {
-    this.buffer[y * SCREEN_WIDTH + x] = (this.buffer[y * SCREEN_WIDTH + x] & ~flags) | ((charCode | (fgColor << 8) | (bgColor << 12)) & flags);
+    this.setRawChar(x, y, (this.buffer[y * SCREEN_WIDTH + x] & ~flags) | ((charCode | (fgColor << 8) | (bgColor << 12)) & flags));
     this.updateCanvas(x, y);
   }
   fill(charCode: number, fgColor: Color, bgColor: Color, flags = ModifyFlags.All) {
     const cc = (charCode | (fgColor << 8) | (bgColor << 12)) & flags;
-    for (let i = 0; i < this.buffer.length; i++) {
-      this.buffer[i] = (this.buffer[i] & ~flags) | cc;
-      this.updateCanvas(i % SCREEN_WIDTH, Math.floor(i / SCREEN_WIDTH));
+    for (let y = 0; y < SCREEN_HEIGHT; y++)
+    for (let x = 0; x < SCREEN_WIDTH; x++) {
+      this.setRawChar(x, y, (this.getRawChar(x, y) & ~flags) | cc);
+      this.updateCanvas(x, y);
     }
   }
   putVHalf(x: number, yh: number, color: Color) {
-    const existing = this.buffer[(yh >> 1) * SCREEN_WIDTH + x];
+    const existing = this.getRawChar(x, (yh >> 1));
     const existingTile = existing & 0xff;
     const existingFG = (existing >>> 8) & 0xf;
     const existingBG = (existing >>> 12) & 0xf;
@@ -178,7 +189,7 @@ export default class TextModeScreen {
     }
   }
   putHHalf(xh: number, y: number, color: Color) {
-    const existing = this.buffer[y * SCREEN_WIDTH + (xh >> 1)];
+    const existing = this.getRawChar((xh >> 1), y);
     const existingTile = existing & 0xff;
     const existingFG = (existing >>> 8) & 0xf;
     const existingBG = (existing >>> 12) & 0xf;
@@ -235,5 +246,49 @@ export default class TextModeScreen {
     for (let y = 0; y < SCREEN_HEIGHT; y++)
     for (let x = 0; x < SCREEN_WIDTH; x++)
       this.updateCanvas(x, y);
+  }
+}
+
+export class TextModeOverlay extends TextModeScreen {
+  constructor(readonly baseScreen: TextModeScreen) {
+    super(baseScreen.drawChar);
+    this.mask = new Uint8Array(this.buffer.length);
+  }
+  mask: Uint8Array;
+  reset() {
+    this.mask.fill(0);
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+  updateCanvas(x: number, y: number) {
+    if (OFFSCREEN(x, y)) return;
+    if (this.mask[y * SCREEN_WIDTH + x]) {
+      const v = this.buffer[y * SCREEN_WIDTH + x];
+      this.drawChar(this.ctx, x, y, v & 0xff, (v >> 8) & 0xf, (v >> 12) & 0xf);
+    }
+    else {
+      this.ctx.clearRect(x * 8, y * 16, 8, 16);
+    }
+  }
+  getRawChar(x: number, y: number) {
+    return (this.mask[y * SCREEN_WIDTH + x] ? this.buffer : this.baseScreen.buffer)[y * SCREEN_WIDTH + x] || 0;
+  }
+  setRawChar(x: number, y: number, c: number): void {
+    if (OFFSCREEN(x, y)) return;
+    this.buffer[y * SCREEN_WIDTH + x] = c;
+    this.mask[y * SCREEN_WIDTH + x] = 0xff;
+  }
+  clearChar(x: number, y: number) {
+    if (OFFSCREEN(x, y)) return;
+    this.mask[y * SCREEN_WIDTH + x] = 0;
+    this.updateCanvas(x, y);
+  }
+  commit() {
+    for (let i = 0; i < this.buffer.length; i++) {
+      if (this.mask[i]) {
+        this.baseScreen.buffer[i] = this.buffer[i];
+        this.baseScreen.updateCanvas(i % SCREEN_WIDTH, Math.floor(i / SCREEN_WIDTH));
+      }
+    }
+    this.reset();
   }
 }

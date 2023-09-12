@@ -3,7 +3,7 @@ import "./index.html";
 import "./favicon.png";
 import "./dosdraw.css";
 import "./chardata.png";
-import TextModeScreen, { CSSColors, Color, ModifyFlags, SCREEN_HEIGHT, SCREEN_WIDTH } from "./TextModeScreen";
+import TextModeScreen, { CSSColors, Color, ModifyFlags, SCREEN_HEIGHT, SCREEN_WIDTH, TextModeOverlay } from "./TextModeScreen";
 import { BOXCHAR_ALL, drawBox, getBoxChar } from "./boxchars";
 
 const reqPromise = fetch('./chardata.png');
@@ -592,9 +592,12 @@ async function main() {
   const bitPatterns = toBits(ib);
   const bitPatternsRotated = rotateBits(bitPatterns);
   const screen = new TextModeScreen(drawChar);
+  const screenOverlay = new TextModeOverlay(screen);
   const canvas = document.getElementById('editor') as HTMLCanvasElement;
+  const canvasOverlay = document.getElementById('editor-overlay') as HTMLCanvasElement;
   const ctx = canvas.getContext('2d');
-  if (!ctx) {
+  const overlayCtx = canvasOverlay.getContext('2d');
+  if (!ctx || !overlayCtx) {
     throw new Error('unable to create canvas context');
   }
   let flags = ModifyFlags.All;
@@ -684,22 +687,29 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          screen.setChar(x, y, currentChars[button], colors[0], colors[2], flags);
-          ctx.drawImage(screen.canvas, 0, 0);
+          screenOverlay.setChar(x, y, currentChars[button], colors[0], colors[2], flags);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           let lastX = x, lastY = y;
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
-            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);  
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
             for (const [dx, dy] of bresenhamLine(lastX, lastY, x, y)) {
-              screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
+              screenOverlay.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
-            ctx!.drawImage(screen.canvas, 0, 0);
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             lastX = x;
             lastY = y;
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
             canvas.removeEventListener('pointerup', onpointerup);
           }
@@ -718,22 +728,29 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 50 / rect.height);
-          screen.putVHalf(x, y, colors[button]);
-          ctx.drawImage(screen.canvas, 0, 0);
+          screenOverlay.putVHalf(x, y, colors[button]);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           let lastX = x, lastY = y;
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 50 / rect.height);  
             for (const [dx, dy] of bresenhamLine(lastX, lastY, x, y)) {
-              screen.putVHalf(dx, dy, colors[button]);
+              screenOverlay.putVHalf(dx, dy, colors[button]);
             }
-            ctx!.drawImage(screen.canvas, 0, 0);
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             lastX = x;
             lastY = y;
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
             canvas.removeEventListener('pointerup', onpointerup);
           }
@@ -752,22 +769,29 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 160 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          screen.putHHalf(x, y, colors[button]);
-          ctx.drawImage(screen.canvas, 0, 0);
+          screenOverlay.putHHalf(x, y, colors[button]);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           let lastX = x, lastY = y;
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 160 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);  
             for (const [dx, dy] of bresenhamLine(lastX, lastY, x, y)) {
-              screen.putHHalf(dx, dy, colors[button]);
+              screenOverlay.putHHalf(dx, dy, colors[button]);
             }
-            ctx!.drawImage(screen.canvas, 0, 0);
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             lastX = x;
             lastY = y;
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
             canvas.removeEventListener('pointerup', onpointerup);
           }
@@ -787,25 +811,25 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          drawChar(ctx, x, y, currentChars[button], colors[0], colors[2]);
+          screenOverlay.setChar(x, y, currentChars[button], colors[0], colors[2], flags);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           const startX = x, startY = y;
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
+            screenOverlay.reset();
             for (const [dx, dy] of bresenhamLine(startX, startY, x, y)) {
-              drawChar(ctx!, dx, dy, currentChars[button], colors[0], colors[2]);
+              screenOverlay.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
-            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
-            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            for (const [dx, dy] of bresenhamLine(startX, startY, x, y)) {
-              screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
-            }
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
@@ -827,25 +851,26 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          drawChar(ctx, x, y, currentChars[button], colors[0], colors[2]);
+          screenOverlay.setChar(x, y, currentChars[button], colors[0], colors[2], flags);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           const startX = x, startY = y;
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
+            screenOverlay.reset();
             for (const [dx, dy] of filledRect(startX, startY, x, y)) {
-              drawChar(ctx!, dx, dy, currentChars[button], colors[0], colors[2]);
+              screenOverlay.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
-            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
-            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            for (const [dx, dy] of filledRect(startX, startY, x, y)) {
-              screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
-            }
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
@@ -867,25 +892,26 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          drawChar(ctx, x, y, currentChars[button], colors[0], colors[2]);
+          screenOverlay.setChar(x, y, currentChars[button], colors[0], colors[2], flags);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           const startX = x, startY = y;
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
+            screenOverlay.reset();
             for (const [dx, dy] of emptyRect(startX, startY, x, y)) {
-              drawChar(ctx!, dx, dy, currentChars[button], colors[0], colors[2]);
+              screenOverlay.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
             }
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
-            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
-            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            for (const [dx, dy] of emptyRect(startX, startY, x, y)) {
-              screen.setChar(dx, dy, currentChars[button], colors[0], colors[2], flags);
-            }
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
@@ -906,21 +932,26 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          drawChar(ctx, x, y, getBoxChar(BOXCHAR_ALL), colors[0], colors[2]);
+          screenOverlay.setChar(x, y, getBoxChar(BOXCHAR_ALL), colors[0], colors[2], flags);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           const startX = x, startY = y;
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
-            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => drawChar(ctx!, x, y, v, colors[0], colors[2] ), false);
+            screenOverlay.reset();
+            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => screenOverlay.setChar(x, y, v, colors[0], colors[2], flags), false);
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => screen.putChar(x, y, v, colors[0], colors[2] ), false);
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
@@ -941,21 +972,24 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          drawChar(ctx, x, y, getBoxChar(BOXCHAR_ALL), colors[0], colors[2]);
+          screenOverlay.setChar(x, y, getBoxChar(BOXCHAR_ALL), colors[0], colors[2], flags);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           const startX = x, startY = y;
           function onpointermove(e: PointerEvent) {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
-            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => drawChar(ctx!, x, y, v, colors[0], colors[2] ), true);
+            screenOverlay.reset();
+            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => screenOverlay.setChar(x, y, v, colors[0], colors[2], flags), true);
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
-            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
-            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            drawBox(startX, startY, x, y, (x, y) => screen.getChar(x, y), (x, y, v) => screen.putChar(x, y, v, colors[0], colors[2] ), true);
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
@@ -982,8 +1016,8 @@ async function main() {
             bitPatterns,
             bitPatternsRotated,
             colors[button]);
-          ctx!.globalCompositeOperation = 'copy';
-          ctx!.drawImage(screen.canvas, 0, 0);
+          ctx.globalCompositeOperation = 'copy';
+          ctx.drawImage(screen.canvas, 0, 0);
         }
       };
     },
@@ -1039,9 +1073,9 @@ async function main() {
         }
       };
       const type = (c: number) => {
-        screen.setChar(cursorX, cursorY, c, colors[0], colors[2], flags);
-        ctx!.globalCompositeOperation = 'copy';
-        ctx!.drawImage(screen.canvas, 0, 0);
+        screenOverlay.setChar(cursorX, cursorY, c, colors[0], colors[2], flags);
+        overlayCtx.globalCompositeOperation = 'copy';
+        overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
         if (cursorX === (SCREEN_WIDTH-1)) {
           if (cursorY !== (SCREEN_HEIGHT-1)) {
             setCursorPosition(0, cursorY + 1);
@@ -1050,7 +1084,15 @@ async function main() {
         else {
           setCursorPosition(cursorX+1, cursorY);
         }
-      };      
+      };
+      function onblur() {
+        screenOverlay.commit();
+        overlayCtx!.globalCompositeOperation = 'copy';
+        overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+        ctx!.globalCompositeOperation = 'copy';
+        ctx!.drawImage(screen.canvas, 0, 0);
+      }
+      editorBlock.onblur = onblur;
       function onkeydown(e: KeyboardEvent) {
         if (e.key === 'Tab') return;
         e.preventDefault();
@@ -1113,15 +1155,15 @@ async function main() {
               }
               setCursorPosition(cursorX-1, cursorY);
             }
-            screen.setChar(cursorX, cursorY, 0, colors[0], colors[2], flags);
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
+            screenOverlay.clearChar(cursorX, cursorY);
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             return;
           }
           case 'Delete': {
-            screen.setChar(cursorX, cursorY, 0, colors[0], colors[2], flags);
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
+            screenOverlay.clearChar(cursorX, cursorY);
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             return;
           }
         }
@@ -1132,6 +1174,12 @@ async function main() {
       }
       editorBlock.addEventListener('keydown', onkeydown);
       return () => {
+        editorBlock.onblur = null;
+        screenOverlay.commit();
+        overlayCtx.globalCompositeOperation = 'copy';
+        overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
+        ctx.globalCompositeOperation = 'copy';
+        ctx.drawImage(screen.canvas, 0, 0);
         editorBlock.removeEventListener('keydown', onkeydown);
       };
     },
@@ -1147,7 +1195,9 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
           const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-          drawChar(ctx, x, y, 0xDB, gradient[0], 0);
+          screenOverlay.setChar(x, y, 0xDB, gradient[0], 0);
+          overlayCtx.globalCompositeOperation = 'copy';
+          overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
           const startX = x, startY = y;
           const dirSelector = document.getElementById('gradient-direction-selector') as HTMLSelectElement;
           const getRatio: (x: number, y: number, minX: number, maxX: number, minY: number, maxY: number) => number
@@ -1159,27 +1209,25 @@ async function main() {
             if (e.pointerId !== pointerId) return;
             const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
             const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
+            screenOverlay.reset();
             const [minX, maxX] = startX < x ? [startX, x] : [x, startX];
             const [minY, maxY] = startY < y ? [startY, y] : [y, startY];
             for (const [dx, dy] of filledRect(startX, startY, x, y)) {
+              if (dx < 0 || dy < 0 || dx >= SCREEN_WIDTH || dy >= SCREEN_HEIGHT) {
+                continue;
+              }
               const ratio = getRatio(dx, dy, minX, maxX, minY, maxY);
               const { charCode, fgColor, bgColor } = calcGradientCharInfo(gradient, ratio);
-              drawChar(ctx!, dx, dy, charCode, fgColor, bgColor);
+              screenOverlay.setChar(dx, dy, charCode, fgColor, bgColor);
             }
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
-            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
-            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
-            const [minX, maxX] = startX < x ? [startX, x] : [x, startX];
-            const [minY, maxY] = startY < y ? [startY, y] : [y, startY];
-            for (const [dx, dy] of filledRect(startX, startY, x, y)) {
-              const ratio = getRatio(dx, dy, minX, maxX, minY, maxY);
-              const { charCode, fgColor, bgColor } = calcGradientCharInfo(gradient, ratio);
-              screen.putChar(dx, dy, charCode, fgColor, bgColor);
-            }
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
             ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
@@ -1335,15 +1383,20 @@ async function main() {
               }
             }
             if (newChar !== charCode || newFG !== fgColor || newBG !== bgColor) {
-              screen.putChar(x, y, newChar, newFG, newBG);
-              ctx!.globalCompositeOperation = 'copy';
-              ctx!.drawImage(screen.canvas, 0, 0);
+              screenOverlay.putChar(x, y, newChar, newFG, newBG);
+              overlayCtx!.globalCompositeOperation = 'copy';
+              overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             }
-        }
+          }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) {
               return;
             }
+            screenOverlay.commit();
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
             canvas.removeEventListener('pointermove', onpointermove);
             canvas.removeEventListener('pointerup', onpointerup);
           }

@@ -215,6 +215,27 @@ body:not(.tool-gradientBox) .gradient-box-settings {
   display: none;
 }
 
+#editor-overlay {
+  position: absolute;
+  z-index: 50;
+/*  animation: oscillateOpacity 3s infinite ease-in-out; */
+  pointer-events: none;
+  top: 0;
+  left: 0;
+}
+
+@keyframes oscillateOpacity {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
 #editor-block {
   position: relative;
 }
