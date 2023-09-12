@@ -1093,20 +1093,31 @@ async function main() {
         ctx!.drawImage(screen.canvas, 0, 0);
       }
       editorBlock.onblur = onblur;
+      let altNums: string[] = [];
       function onkeydown(e: KeyboardEvent) {
-        if (e.key === 'Tab') return;
-        e.preventDefault();
-        e.stopPropagation();
+        if (e.code === 'AltLeft' || e.code === 'AltRight') {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         switch (e.key) {
+          case 'Tab': return;
           case 'ArrowDown': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             setCursorPosition(cursorX, Math.min(cursorY + 1, SCREEN_HEIGHT-1));
+            e.preventDefault();
+            e.stopPropagation();
             return;
           }
           case 'ArrowUp': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             setCursorPosition(cursorX, Math.max(cursorY - 1, 0));
+            e.preventDefault();
+            e.stopPropagation();
             return;
           }
           case 'ArrowLeft': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             if (cursorX === 0) {
               if (cursorY !== 0) {
                 setCursorPosition(SCREEN_WIDTH-1, cursorY-1);
@@ -1118,9 +1129,12 @@ async function main() {
               }
               setCursorPosition(cursorX-1, cursorY);
             }
+            e.preventDefault();
+            e.stopPropagation();
             return;
           }
           case 'ArrowRight': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             if (cursorX === (SCREEN_WIDTH-1)) {
               if (cursorY !== (SCREEN_HEIGHT-1)) {
                 setCursorPosition(0, cursorY + 1);
@@ -1129,21 +1143,33 @@ async function main() {
             else {
               setCursorPosition(cursorX+1, cursorY);
             }
+            e.preventDefault();
+            e.stopPropagation();
             return;
           }
           case 'Enter': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             setCursorPosition(cursorLineStart, Math.min(SCREEN_HEIGHT-1, cursorY+1));
+            e.preventDefault();
+            e.stopPropagation();
             return;
           }
           case 'End': case 'PageDown': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             setCursorPosition(cursorX, SCREEN_HEIGHT-1);
+            e.preventDefault();
+            e.stopPropagation();
             return;
           }
           case 'Home': case 'PageUp': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             setCursorPosition(cursorX, 0);
+            e.preventDefault();
+            e.stopPropagation();   
             return;
           }
           case 'Backspace': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             if (cursorX === 0) {
               if (cursorY !== 0) {
                 setCursorPosition(SCREEN_WIDTH-1, cursorY-1);
@@ -1161,18 +1187,40 @@ async function main() {
             return;
           }
           case 'Delete': {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             screenOverlay.clearChar(cursorX, cursorY);
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             return;
           }
         }
-        const charCode = codepageMap.get(e.key);
-        if (typeof charCode === 'number') {
-          type(charCode);
+        if (e.altKey && !e.ctrlKey && e.location === 3 && e.key >= '0' && e.key <= '9') {
+          altNums.push(e.key);
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        else if (!e.ctrlKey && !e.altKey) {
+          const charCode = codepageMap.get(e.key);
+          if (typeof charCode === 'number') {
+            type(charCode);
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }
+      function onkeyup(e: KeyboardEvent) {
+        if (e.key === 'Alt' || e.code === 'AltLeft' || e.code === 'AltRight') {
+          if (altNums.length > 0) {
+            const val = Number.parseInt(altNums.slice(-3).join('')) & 0xff;
+            altNums.length = 0;
+            type(val);
+          }
+          e.preventDefault();
+          e.stopPropagation();
         }
       }
       editorBlock.addEventListener('keydown', onkeydown);
+      editorBlock.addEventListener('keyup', onkeyup);
       return () => {
         editorBlock.onblur = null;
         screenOverlay.commit();
@@ -1181,6 +1229,7 @@ async function main() {
         ctx.globalCompositeOperation = 'copy';
         ctx.drawImage(screen.canvas, 0, 0);
         editorBlock.removeEventListener('keydown', onkeydown);
+        editorBlock.removeEventListener('keyup', onkeyup);
       };
     },
     gradientBox: () => {
