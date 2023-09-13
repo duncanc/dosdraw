@@ -1073,6 +1073,16 @@ async function main() {
         }
       };
       const type = (c: number) => {
+        let pos2 = cursorX;
+        while (screenOverlay.isModified(pos2, cursorY)) {
+          if (++pos2 === SCREEN_WIDTH) {
+            pos2--;
+            break;
+          }
+        }
+        if (pos2 > cursorX) {
+          screenOverlay.shiftChars(cursorX, cursorY, pos2 + 1 - cursorX, 1);
+        }
         screenOverlay.setChar(cursorX, cursorY, c, colors[0], colors[2], flags);
         overlayCtx.globalCompositeOperation = 'copy';
         overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
@@ -1181,14 +1191,14 @@ async function main() {
               }
               setCursorPosition(cursorX-1, cursorY);
             }
-            screenOverlay.clearChar(cursorX, cursorY);
+            screenOverlay.shiftChars(cursorX, cursorY, SCREEN_WIDTH - cursorX, -1);
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             return;
           }
           case 'Delete': {
             if (e.altKey || e.ctrlKey || e.metaKey) return;
-            screenOverlay.clearChar(cursorX, cursorY);
+            screenOverlay.shiftChars(cursorX, cursorY, SCREEN_WIDTH - cursorX, -1);
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             return;

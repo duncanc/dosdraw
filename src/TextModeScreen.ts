@@ -291,4 +291,24 @@ export class TextModeOverlay extends TextModeScreen {
     }
     this.reset();
   }
+  shiftChars(x: number, y: number, width: number, shift: number) {
+    const startPos = y*SCREEN_WIDTH + x;
+    const endPos = startPos + width;
+    if (shift < 0) {
+      this.buffer.copyWithin(startPos, startPos - shift, endPos);
+      this.mask.copyWithin(startPos, startPos - shift, endPos);
+      this.mask.fill(0, endPos + shift, endPos);
+    }
+    else {
+      this.buffer.copyWithin(startPos + shift, startPos, endPos - shift);  
+      this.mask.copyWithin(startPos + shift, startPos, endPos - shift);
+      this.mask.fill(0, startPos, startPos + shift);
+    }
+    for (let i = 0; i < width; i++) {
+      this.updateCanvas(x + i, y);
+    }
+  }
+  isModified(x: number, y: number) {
+    return Boolean(this.mask[y * SCREEN_WIDTH + x]);
+  }
 }
