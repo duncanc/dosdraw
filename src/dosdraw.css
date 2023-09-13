@@ -197,7 +197,7 @@ body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox, .tool-pic
   display: none;
 }
 
-body:not(.tool-gradientBox, .tool-spraypaint) .gradient-container,
+body:not(.tool-gradientBox, .tool-spraypaint, .tool-rainbowBrush) .gradient-container,
 body:not(.tool-gradientBox) .gradient-box-settings {
   display: none;
 }
