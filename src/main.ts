@@ -1756,6 +1756,7 @@ async function main() {
   document.getElementById('load-image')!.onclick = async e => {
     const blob = await openDialog();
     if (blob) {
+      const temp3 = new Uint16Array(screen.buffer);
       try {
         await screen.loadBlob(blob);
       }
@@ -1763,11 +1764,18 @@ async function main() {
         alert(e);
         return;
       }
+      temp2.set(screen.buffer);
+      addSessionUpdate(sessionId, headUpdateId, temp3, temp2)
+      .then(newUpdateId => { headUpdateId = newUpdateId; });  
       ctx.drawImage(screen.canvas, 0, 0);
     }
   };
   document.getElementById('clear-image')!.onclick = e => {
+    temp1.set(screen.buffer);
     screen.fill(currentChars[2], colors[0], colors[2], flags);
+    temp2.set(screen.buffer);
+    addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+    .then(newUpdateId => { headUpdateId = newUpdateId; });
     ctx.drawImage(screen.canvas, 0, 0);
   };
 }
