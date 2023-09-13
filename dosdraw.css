@@ -197,7 +197,7 @@ body:not(.tool-freehand, .tool-lines, .tool-filledBox, .tool-emptyBox, .tool-pic
   display: none;
 }
 
-body:not(.tool-gradientBox, .tool-spraypaint) .gradient-container,
+body:not(.tool-gradientBox, .tool-spraypaint, .tool-rainbowBrush) .gradient-container,
 body:not(.tool-gradientBox) .gradient-box-settings {
   display: none;
 }
@@ -213,6 +213,27 @@ body:not(.tool-gradientBox) .gradient-box-settings {
   pointer-events: none;
   mix-blend-mode: difference;
   display: none;
+}
+
+#editor-overlay {
+  position: absolute;
+  z-index: 50;
+/*  animation: oscillateOpacity 3s infinite ease-in-out; */
+  pointer-events: none;
+  top: 0;
+  left: 0;
+}
+
+@keyframes oscillateOpacity {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
 }
 
 #editor-block {
@@ -294,4 +315,14 @@ body.tool-text #editor-block:focus .cursor {
 
 body.tool-text #editor {
   cursor: text;
+}
+
+.button-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+}
+
+.button-row button {
+  flex-grow: 1;
 }
