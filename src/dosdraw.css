@@ -316,3 +316,13 @@ body.tool-text #editor-block:focus .cursor {
 body.tool-text #editor {
   cursor: text;
 }
+
+.button-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+}
+
+.button-row button {
+  flex-grow: 1;
+}

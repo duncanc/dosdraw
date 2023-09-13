@@ -5,6 +5,7 @@ import "./dosdraw.css";
 import "./chardata.png";
 import TextModeScreen, { CSSColors, Color, ModifyFlags, SCREEN_HEIGHT, SCREEN_WIDTH, TextModeOverlay } from "./TextModeScreen";
 import { BOXCHAR_ALL, drawBox, getBoxChar } from "./boxchars";
+import { addSessionUpdate, openSession, redo, setSessionSaved, undo } from "./undo-system";
 
 const reqPromise = fetch('./chardata.png');
 
@@ -592,11 +593,38 @@ async function main() {
   const bitPatterns = toBits(ib);
   const bitPatternsRotated = rotateBits(bitPatterns);
   const screen = new TextModeScreen(drawChar);
+  let { sessionId, headUpdateId } = await openSession(screen.buffer);
+  document.getElementById('undo')!.onclick = async () => {
+    let buffer = new Uint16Array(screen.buffer);
+    const { data, newUpdateId } = await undo(sessionId, headUpdateId, buffer);
+    screen.buffer.set(data);
+    for (let y = 0; y < SCREEN_HEIGHT; y++)
+    for (let x = 0; x < SCREEN_WIDTH; x++) {
+      screen.updateCanvas(x, y);
+    }
+    ctx!.globalCompositeOperation = 'copy';
+    ctx!.drawImage(screen.canvas, 0, 0);
+    headUpdateId = newUpdateId;
+  };
+  document.getElementById('redo')!.onclick = async () => {
+    let buffer = new Uint16Array(screen.buffer);
+    const { data, newUpdateId } = await redo(sessionId, headUpdateId, buffer);
+    screen.buffer.set(data);
+    for (let y = 0; y < SCREEN_HEIGHT; y++)
+    for (let x = 0; x < SCREEN_WIDTH; x++) {
+      screen.updateCanvas(x, y);
+    }
+    ctx!.globalCompositeOperation = 'copy';
+    ctx!.drawImage(screen.canvas, 0, 0);
+    headUpdateId = newUpdateId;
+  };
   const screenOverlay = new TextModeOverlay(screen);
   const canvas = document.getElementById('editor') as HTMLCanvasElement;
   const canvasOverlay = document.getElementById('editor-overlay') as HTMLCanvasElement;
   const ctx = canvas.getContext('2d');
   const overlayCtx = canvasOverlay.getContext('2d');
+  const temp1 = new Uint16Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+  const temp2 = new Uint16Array(SCREEN_WIDTH * SCREEN_HEIGHT);
   if (!ctx || !overlayCtx) {
     throw new Error('unable to create canvas context');
   }
@@ -703,9 +731,13 @@ async function main() {
             lastX = x;
             lastY = y;
           }
-          function onpointerup(e: PointerEvent) {
+          async function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -746,7 +778,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -787,7 +823,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -827,7 +867,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -868,7 +912,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -909,7 +957,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -947,9 +999,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
-            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
-            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -987,7 +1041,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -1009,6 +1067,7 @@ async function main() {
           const rect = canvas.getBoundingClientRect();
           const x = ((e.clientX - rect.x) * 80 / rect.width);
           const y = ((e.clientY - rect.y) * 25 / rect.height);
+          temp1.set(screen.buffer);
           floodFill(
             x, y,
             (x, y) => screen.getCharInfo(x, y),
@@ -1016,6 +1075,9 @@ async function main() {
             bitPatterns,
             bitPatternsRotated,
             colors[button]);
+          temp2.set(screen.buffer);
+          addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+          .then(newUpdateId => { headUpdateId = newUpdateId; });
           ctx.globalCompositeOperation = 'copy';
           ctx.drawImage(screen.canvas, 0, 0);
         }
@@ -1059,6 +1121,7 @@ async function main() {
     },
     text: () => {
       editorBlock.focus();
+      let changes = false;
       canvas.onpointerdown = e => {
         if (e.pointerType === 'mouse') {
           const { button, pointerId } = e;
@@ -1073,6 +1136,7 @@ async function main() {
         }
       };
       const type = (c: number) => {
+        changes = true;
         let pos2 = cursorX;
         while (screenOverlay.isModified(pos2, cursorY)) {
           if (++pos2 === SCREEN_WIDTH) {
@@ -1096,11 +1160,18 @@ async function main() {
         }
       };
       function onblur() {
-        screenOverlay.commit();
-        overlayCtx!.globalCompositeOperation = 'copy';
-        overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
-        ctx!.globalCompositeOperation = 'copy';
-        ctx!.drawImage(screen.canvas, 0, 0);
+        if (changes) {
+          temp1.set(screen.buffer);
+          screenOverlay.commit();
+          temp2.set(screen.buffer);
+          addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+          .then(newUpdateId => { headUpdateId = newUpdateId; });
+          overlayCtx!.globalCompositeOperation = 'copy';
+          overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+          ctx!.globalCompositeOperation = 'copy';
+          ctx!.drawImage(screen.canvas, 0, 0);
+          changes = false;
+        }
       }
       editorBlock.onblur = onblur;
       let altNums: string[] = [];
@@ -1248,11 +1319,17 @@ async function main() {
       document.addEventListener('paste', onpaste);
       return () => {
         editorBlock.onblur = null;
-        screenOverlay.commit();
-        overlayCtx.globalCompositeOperation = 'copy';
-        overlayCtx.drawImage(screenOverlay.canvas, 0, 0);
-        ctx.globalCompositeOperation = 'copy';
-        ctx.drawImage(screen.canvas, 0, 0);
+        if (changes) {
+          temp1.set(screen.buffer);
+          screenOverlay.commit();
+          temp2.set(screen.buffer);
+          addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+          .then(newUpdateId => { headUpdateId = newUpdateId; });
+          overlayCtx!.globalCompositeOperation = 'copy';
+          overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+          ctx!.globalCompositeOperation = 'copy';
+          ctx!.drawImage(screen.canvas, 0, 0);
+        }
         editorBlock.removeEventListener('keydown', onkeydown);
         editorBlock.removeEventListener('keyup', onkeyup);
         document.removeEventListener('paste', onpaste);
@@ -1300,7 +1377,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -1355,7 +1436,11 @@ async function main() {
           }
           function onpointerup(e: PointerEvent) {
             if (e.pointerId !== pointerId || e.button !== button) return;
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -1522,7 +1607,11 @@ async function main() {
             if (e.pointerId !== pointerId || e.button !== button) {
               return;
             }
+            temp1.set(screen.buffer);
             screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
             overlayCtx!.globalCompositeOperation = 'copy';
             overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
             ctx!.globalCompositeOperation = 'copy';
@@ -1662,6 +1751,7 @@ async function main() {
     link.download = 'dosimage.dat';
     link.href = blobLink;
     link.click();
+    setSessionSaved(sessionId, headUpdateId);
   };
   document.getElementById('load-image')!.onclick = async e => {
     const blob = await openDialog();
