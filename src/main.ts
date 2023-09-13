@@ -7,6 +7,8 @@ import TextModeScreen, { CSSColors, Color, ModifyFlags, SCREEN_HEIGHT, SCREEN_WI
 import { BOXCHAR_ALL, drawBox, getBoxChar } from "./boxchars";
 import { addSessionUpdate, openSession, redo, setSessionSaved, undo } from "./undo-system";
 
+const ctrlOrCmd = (navigator.platform || '').toUpperCase().indexOf('MAC') === -1 ? (e: KeyboardEvent) => e.ctrlKey : (e: KeyboardEvent) => e.metaKey;
+
 const reqPromise = fetch('./chardata.png');
 
 function* bresenhamLine(x1: number, y1: number, x2: number, y2: number): Generator<[number, number]> {
@@ -594,7 +596,7 @@ async function main() {
   const bitPatternsRotated = rotateBits(bitPatterns);
   const screen = new TextModeScreen(drawChar);
   let { sessionId, headUpdateId } = await openSession(screen.buffer);
-  document.getElementById('undo')!.onclick = async () => {
+  const performUndo = async () => {
     let buffer = new Uint16Array(screen.buffer);
     const { data, newUpdateId } = await undo(sessionId, headUpdateId, buffer);
     screen.buffer.set(data);
@@ -606,7 +608,7 @@ async function main() {
     ctx!.drawImage(screen.canvas, 0, 0);
     headUpdateId = newUpdateId;
   };
-  document.getElementById('redo')!.onclick = async () => {
+  const performRedo = async () => {
     let buffer = new Uint16Array(screen.buffer);
     const { data, newUpdateId } = await redo(sessionId, headUpdateId, buffer);
     screen.buffer.set(data);
@@ -618,6 +620,20 @@ async function main() {
     ctx!.drawImage(screen.canvas, 0, 0);
     headUpdateId = newUpdateId;
   };
+  document.getElementById('undo')!.onclick = performUndo;
+  document.getElementById('redo')!.onclick = performRedo;
+  document.addEventListener('keydown', e => {
+    if (ctrlOrCmd(e)) {
+      if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) {
+        performRedo();
+        e.preventDefault();
+      }
+      else if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        performUndo();
+        e.preventDefault();
+      }
+    }
+  });
   const screenOverlay = new TextModeOverlay(screen);
   const canvas = document.getElementById('editor') as HTMLCanvasElement;
   const canvasOverlay = document.getElementById('editor-overlay') as HTMLCanvasElement;
