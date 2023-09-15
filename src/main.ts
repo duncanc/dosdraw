@@ -1911,6 +1911,7 @@ async function main() {
     selectedTool = toolSelector.value;
     document.body.classList.add('tool-' + selectedTool);
   };
+  toolSelector.dispatchEvent(new Event('change'));
   canvas.oncontextmenu = e => {
     e.preventDefault();
   };
