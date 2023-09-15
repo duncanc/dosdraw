@@ -42,6 +42,68 @@ function* bresenhamLine(x1: number, y1: number, x2: number, y2: number): Generat
   }
 }
 
+function rgbToHSV(r: number, g: number, b: number): [number, number, number] {
+  // Normalize red, green, and blue values
+  const rNorm = r / 255;
+  const gNorm = g / 255;
+  const bNorm = b / 255;
+  
+  const max = Math.max(rNorm, gNorm, bNorm);
+  const min = Math.min(rNorm, gNorm, bNorm);
+  const diff = max - min;
+
+  // Calculate value
+  const v = max;
+
+  // Calculate saturation
+  const s = max === 0 ? 0 : diff / max;
+
+  // Calculate hue
+  let h = 0;
+  if (max !== min) {
+    if (max === rNorm) {
+      h = (gNorm - bNorm) / diff + (gNorm < bNorm ? 6 : 0);
+    }
+    else if (max === gNorm) {
+      h = (bNorm - rNorm) / diff + 2;
+    }
+    else {
+      h = (rNorm - gNorm) / diff + 4;
+    }
+    h /= 6;
+  }
+
+  return [Math.round(h * 360), Math.round(s * 100), Math.round(v * 100)];
+}
+
+const VALUE_DARK_THRESHOLD = 70;
+
+function hsvToVGA(h: number, s: number, v: number) {
+  if (s < 70) {
+    if (v < 25) return 0;
+    if (v < 65) return 8;
+    if (v < 90) return 7;
+    return 15;
+  }
+  if (v < 10) return 0;
+  if (h < 30 || h >= 330) {
+    return (v < VALUE_DARK_THRESHOLD) ? 4 : 4+8;
+  }
+  if (h < 90) {
+    return (v < VALUE_DARK_THRESHOLD) ? 6 : 6+8;
+  }
+  if (h < 150) {
+    return (v < VALUE_DARK_THRESHOLD) ? 2 : 2+8;
+  }
+  if (h < 210) {
+    return (v < VALUE_DARK_THRESHOLD) ? 3 : 3+8;
+  }
+  if (h < 270) {
+    return (v < VALUE_DARK_THRESHOLD) ? 1 : 1+8;
+  }
+  return (v < VALUE_DARK_THRESHOLD) ? 5 : 5+8;
+}
+
 function* filledRect(x1: number, y1: number, x2: number, y2: number): Generator<[number, number]> {
   const xStep = Math.sign(x2 - x1), yStep = Math.sign(y2 - y1);
   if (xStep === 0) {
@@ -179,6 +241,15 @@ function propagatedAnd(a: number, b: number): number {
 
   return result;
 }
+
+const whitespaceHandlers: {[mode: string]: (this: void, str: string) => string} = {
+  normal: str => str.trim().replace(/\s+/g, ' '),
+  nowrap: str => str.trim().replace(/\s+/g, ' '),
+  pre: str => str,
+  'pre-wrap': str => str,
+  'pre-line': str => str.replace(/[ \t]*(\r?\n|\r)[ \t]*/g, '\n').trim().replace(/[ \t]+/g, ' '),
+  'break-spaces': str => str,
+};
 
 const MIN_INSET = 1;
 
@@ -1317,6 +1388,120 @@ async function main() {
         }
       }
       function onpaste(e: ClipboardEvent) {
+        const html = e.clipboardData?.getData('text/html');
+        if (html) {
+          console.log(html);
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = tempCanvas.height = 1;
+          const ctx = tempCanvas.getContext('2d');
+          if (!ctx) {
+            throw new Error('unable to get canvas context');
+          }
+          ctx.globalCompositeOperation = 'copy';
+          const getRGBA = (colorString: string) => {
+            ctx.fillStyle = colorString;
+            ctx.fillRect(0, 0, 1, 1);
+            const { data } = ctx.getImageData(0, 0, 1, 1);
+            return [data[0], data[1], data[2], data[3]];
+          };
+          const processEl = (el: HTMLElement, context: { whitespaceMode?: string, hidden?: boolean } = {}, isInner = false) => {
+            if (/^(?:script|style|noscript|template|head)$/i.test(el.nodeName)) {
+              return;
+            }
+            if (el.style.display === 'none') {
+              return;
+            }
+            if (/^br$/i.test(el.nodeName)) {
+              setCursorPosition(cursorLineStart, Math.min(SCREEN_HEIGHT-1, cursorY+1));
+              return;
+            }
+            let newHidden = Boolean(context.hidden) || (el.style.visibility === 'hidden' || parseFloat(el.style.opacity) <= 0);
+            const newFgColor = el.style.color.replace(/^(inherit|currentcolor|initial|revert|revert-layer|unset|transparent)$/i, '');
+            const newBgColor = el.style.backgroundColor.replace(/^(inherit|currentcolor|initial|revert|revert-layer|unset|transparent)$/i, '');
+            const restoreColor0 = colors[0];
+            const restoreColor2 = colors[2];
+            if (newFgColor) {
+              const rgba = getRGBA(newFgColor);
+              if (rgba[3] === 0) {
+                newHidden = true;
+              }
+              const hsv = rgbToHSV(rgba[0], rgba[1], rgba[2]);
+              colors[0] = hsvToVGA(hsv[0], hsv[1], hsv[2]);
+            }
+            if (newBgColor) {
+              const rgba = getRGBA(newBgColor);
+              const hsv = rgbToHSV(rgba[0], rgba[1], rgba[2]);
+              colors[2] = hsvToVGA(hsv[0], hsv[1], hsv[2]);
+            }
+            const newWhiteSpace = el.style.whiteSpace.replace(/^(inherit|initial|revert|revert-layer|unset)$/i, '') || context.whitespaceMode || '';
+            const newContext = (Boolean(context.hidden) !== newHidden) || (newWhiteSpace !== (context.whitespaceMode || '')) ? {
+              hidden: newHidden, whitespaceMode: newWhiteSpace,
+            } : context;
+            const wsHandler = whitespaceHandlers[newWhiteSpace || context.whitespaceMode || 'normal'] || whitespaceHandlers['normal'];
+            const textParts: string[] = [];
+            const isInline = /^(?:a|abbr|acronym|b|bdo|big|button|cite|code|dfn|em|i|kbd|label|map|object|output|q|samp|small|span|strong|sub|textarea|time|tt|var|ins|del|mark|ruby|rt|rp|html|body)$/i.test(el.nodeName);
+            let firstPart = !isInner && !isInline;
+            let startX = cursorX, startY = cursorY;
+            for (let node = el.firstChild; node; node = node.nextSibling) {
+              switch (node.nodeType) {
+                case Node.ELEMENT_NODE: {
+                  if (textParts.length > 0) {
+                    const text = wsHandler((firstPart ? '' : 'X') + textParts.join('') + 'X').slice(firstPart ? 0 : 1, -1);
+                    textParts.length = 0;
+                    if (text.length > 0) {
+                      for (const c of text) {
+                        if (c === '\n') {
+                          setCursorPosition(cursorLineStart, Math.min(SCREEN_HEIGHT-1, cursorY+1));
+                        }
+                        else {
+                          type(codepageMap.get(c) ?? 63);
+                        }
+                      }
+                    }
+                  }
+                  if (processEl(node as HTMLElement, newContext, !firstPart)) {
+                    startX = cursorX;
+                    startY = cursorY;
+                    firstPart = true;
+                  }
+                  else {
+                    firstPart = false;
+                  }
+                  break;
+                }
+                case Node.TEXT_NODE: case Node.CDATA_SECTION_NODE: case Node.ENTITY_NODE: {
+                  textParts.push(node.nodeValue || '');
+                  break;
+                }
+              }
+            }
+            if (textParts.length > 0) {
+              const text = wsHandler((firstPart ? '' : 'X') + textParts.join('')).slice(firstPart ? 0 : 1);
+              textParts.length = 0;
+              for (const c of text) {
+                if (c === '\n') {
+                  setCursorPosition(cursorLineStart, Math.min(SCREEN_HEIGHT-1, cursorY+1));
+                }
+                else {
+                  type(codepageMap.get(c) ?? 63);
+                }
+              }
+            }
+            colors[0] = restoreColor0;
+            colors[2] = restoreColor2;
+            if ((startX !== cursorX || startY !== cursorY) && !isInline) {
+              setCursorPosition(cursorLineStart, Math.min(SCREEN_HEIGHT-1, cursorY+1));
+              return true;
+            }
+            else {
+              return false;
+            }
+          };
+          processEl(doc.documentElement);
+          return;
+        }
         const pasted = e.clipboardData?.getData('text');
         if (pasted) {
           e.preventDefault();
