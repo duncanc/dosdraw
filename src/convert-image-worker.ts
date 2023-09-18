@@ -29,12 +29,21 @@ onmessage = ({ data: message }: { data: Message }) => {
     }
     case 'image': {
       const { rgba } = message;
-      const hsv = new Float32Array(rgba.length * 3 / 4);
-      for (let i = 0; i*4 < rgba.length; i++) {
+      const rgba_stride = message.width * 4;
+      const pixel_width = message.width - (message.width % 8);
+      const pixel_height = message.height - (message.height % 16);
+      const huesCos = new Float32Array(pixel_width * pixel_height);
+      const huesSin = new Float32Array(pixel_width * pixel_height);
+      const saturations = new Float32Array(pixel_width * pixel_height);
+      const values = new Float32Array(pixel_width * pixel_height);
+      for (let y = 0; y < pixel_width; y++)
+      for (let x = 0; x < pixel_width; x++) {
+        const rgba_i = (y * rgba_stride) + x * 4;
+        const component_i = y * pixel_width + x;
         // Normalize red, green, and blue values
-        const rNorm = rgba[i*4] / 255;
-        const gNorm = rgba[i*4 + 1] / 255;
-        const bNorm = rgba[i*4 + 2] / 255;
+        const rNorm = rgba[rgba_i] / 255;
+        const gNorm = rgba[rgba_i + 1] / 255;
+        const bNorm = rgba[rgba_i + 2] / 255;
         
         const max = Math.max(rNorm, gNorm, bNorm);
         const min = Math.min(rNorm, gNorm, bNorm);
@@ -60,25 +69,25 @@ onmessage = ({ data: message }: { data: Message }) => {
           }
           h /= 6;
         }
-        hsv[i*3] = h;
-        hsv[i*3 + 1] = s;
-        hsv[i*3 + 2] = v;
+        h *= Math.PI * 2;
+        huesCos[component_i] = Math.cos(h);
+        huesSin[component_i] = Math.sin(h);
+        saturations[component_i] = s;
+        values[component_i] = v;
       }
-      const width = message.width - (message.width % 8);
-      const height = message.height - (message.height % 16);
-      const cellsAcross = width/8;
-      const cellsDown = height/16;
+      const cellsAcross = pixel_width/8;
+      const cellsDown = pixel_height/16;
       const cellBuffer = new Uint16Array(cellsAcross * cellsDown);
       for (let cellY = 0; cellY < cellsDown; cellY++)
       for (let cellX = 0; cellX < cellsAcross; cellX++) {
         let totalHSin = 0, totalHCos = 0, totalS = 0, totalV = 0;
         for (let yo = 0; yo < 16; yo++)
         for (let xo = 0; xo < 8; xo++) {
-          const h = hsv[((cellY * 16 + yo) * width + cellX * 8 + xo) * 3] * 2 * Math.PI;
-          totalHSin += Math.sin(h);
-          totalHCos += Math.cos(h);
-          totalS += hsv[((cellY * 16 + yo) * width + cellX * 8 + xo) * 3 + 1];
-          totalV += hsv[((cellY * 16 + yo) * width + cellX * 8 + xo) * 3 + 2];
+          const component_i = (cellY * 16 + yo) * pixel_width + cellX * 8 + xo;
+          totalHSin += huesSin[component_i];
+          totalHCos += huesCos[component_i];
+          totalS += saturations[component_i];
+          totalV += values[component_i];
         }
         const meanH = Math.atan2(totalHSin, totalHCos);
         const meanS = totalS / (8 * 16);
@@ -86,12 +95,13 @@ onmessage = ({ data: message }: { data: Message }) => {
         let varSumH = 0, varSumS = 0, varSumV = 0;
         for (let yo = 0; yo < 16; yo++)
         for (let xo = 0; xo < 8; xo++) {
-          const h = hsv[((cellY * 16 + yo) * width + cellX * 8 + xo) * 3];
+          const i = ((cellY * 16 + yo) * pixel_width + cellX * 8 + xo);
+          const h = Math.atan2(huesSin[i], huesCos[i]);
           let delta = Math.abs(h - meanH);
-          delta = delta > 180 ? 360 - delta : delta;
+          delta = delta > Math.PI ? Math.PI * 2 - delta : delta;
           varSumH += delta * delta;
-          varSumS += Math.pow(hsv[((cellY * 16 + yo) * width + cellX * 8 + xo) * 3 + 1] - meanS, 2);
-          varSumV += Math.pow(hsv[((cellY * 16 + yo) * width + cellX * 8 + xo) * 3 + 2] - meanV, 2);
+          varSumS += saturations[i] * saturations[i];
+          varSumV += values[i] * values[i];
         }
         const varianceH = varSumH / (8 * 16);
         const varianceS = varSumS / (8 * 16);
