@@ -34,6 +34,32 @@ const config = defineConfig([
       }),
     ],
   },
+  {
+    input: "src/convert-image-worker.ts",
+    output: {
+      dir: "build",
+      format: "iife",
+    },
+    onwarn(warning, warn) {
+      if (warning.code !== 'THIS_IS_UNDEFINED') {
+        warn(warning);
+      }
+    },
+    plugins: [
+      tsPlugin({
+      }),
+      nodeResolvePlugin({
+      }),
+      commonjsPlugin({
+      }),
+      projectPlugin({
+      }),
+      closureCompilerPlugin({
+      }),
+      jsonPlugin({
+      }),
+    ],
+  },
 ]);
 
 interface ProjectPluginOptions {

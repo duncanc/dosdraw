@@ -693,6 +693,53 @@ async function main() {
   };
   document.getElementById('undo')!.onclick = performUndo;
   document.getElementById('redo')!.onclick = performRedo;
+  window.addEventListener('paste', e => {
+    const files = Array.from(e.clipboardData?.files || []);
+    const imageFiles = files.filter(v => v.type.startsWith('image/'));
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      let promise = createImageBitmap(imageFiles[0]);
+      for (let i = 1; i < imageFiles.length; i++) {
+        promise = promise.catch(() => createImageBitmap(imageFiles[i]));
+      }
+      promise.then(async ib => {
+        if (ib.width === 0 || ib.height === 0) {
+          throw new Error('empty image');
+        }
+        if (ib.width !== 640 || ib.height !== 400) {
+          ib = await createImageBitmap(ib, {resizeWidth: 640, resizeHeight: 400, resizeQuality: ib.width > 640 || ib.height > 400 ? 'high' : 'pixelated'});
+        }
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = ib.width;
+        tempCanvas.height = ib.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (!tempCtx) throw new Error('unable to create canvas context');
+        tempCtx.globalCompositeOperation = 'copy';
+        tempCtx.drawImage(ib, 0, 0);
+        const pixels = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+        const webworker = new Worker('./convert-image-worker.js');
+        webworker.onmessage = ({ data: { type, data } }: { data: { type: string, data: Uint16Array } }) => {
+          if (type === 'image-done') {
+            temp1.set(screen.buffer);
+            screen.buffer.set(data);
+            for (let y = 0; y < SCREEN_HEIGHT; y++)
+            for (let x = 0; x < SCREEN_WIDTH; x++) {
+              screen.updateCanvas(x, y);
+            }
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+          }
+        };
+        webworker.postMessage({ type: 'image', rgba: pixels, width: ib.width, height: ib.height }, [pixels.buffer]);
+      })
+      .catch(e => {
+        console.error(e);
+      });
+    }
+  });
   document.addEventListener('keydown', e => {
     if (ctrlOrCmd(e)) {
       if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) {
