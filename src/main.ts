@@ -181,7 +181,7 @@ const toBits = (img: ImageBitmap) => {
   const canvas = document.createElement('canvas');
   canvas.width = img.width;
   canvas.height = img.height;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', {willReadFrequently: true});
   if (!ctx) throw new Error('unable to create 2D canvas');
   ctx.drawImage(img, 0, 0);
   const stride = img.width / 9;
