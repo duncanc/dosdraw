@@ -733,6 +733,7 @@ async function main() {
             ctx!.drawImage(screen.canvas, 0, 0);
           }
         };
+        webworker.postMessage({ type: 'init', bitPatterns });
         webworker.postMessage({ type: 'image', rgba: pixels, width: ib.width, height: ib.height }, [pixels.buffer]);
       })
       .catch(e => {

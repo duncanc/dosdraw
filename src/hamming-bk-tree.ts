@@ -260,3 +260,51 @@ const hammingBKTree = new Uint16Array([
 ]);
 
 export default hammingBKTree;
+
+export const hammingDistance = (x: number, y: number) => {
+  let count = 0;
+  for (let diff = x ^ y; diff !== 0; ){
+     diff &= diff-1;
+     count++;
+  }
+  return count;
+};
+
+export const ham16 = (a: ArrayLike<number>, b: ArrayLike<number>) => {
+  let count = 0;
+  for (let i = 0; i < 16; i++) {
+    count += hammingDistance(a[i], b[i]);
+  }
+  return count;
+};
+
+export const findNearest = (query: ArrayLike<number>, bitPatterns: ArrayLike<ArrayLike<number>>): [charCode: number, distance: number] => {
+  let bestDistance = Infinity, bestCharCode = 0;
+  const candidates = [0];
+  do {
+    const offset = candidates.pop()!;
+    const charCode = hammingBKTree[offset];
+    const dist = ham16(query, bitPatterns[charCode]);
+    if (dist < bestDistance) {
+      if (dist === 0) return [charCode, 0];
+      bestDistance = dist;
+      bestCharCode = charCode;
+    }
+    const childCount = hammingBKTree[offset + 1];
+    const minDist = dist - bestDistance;
+    const maxDist = dist + bestDistance;
+    let child_i;
+    for (child_i = 0; child_i < childCount; child_i++) {
+      const childDist = hammingBKTree[offset + 2 + 2 * child_i];
+      if (childDist >= minDist) {
+        break;
+      }
+    }
+    for (; child_i < childCount; child_i++) {
+      const childDist = hammingBKTree[offset + 2 + 2 * child_i];
+      if (childDist > maxDist) break;
+      candidates.push(hammingBKTree[offset + 2 + 2 * child_i + 1]);
+    }
+  } while (candidates.length > 0);
+  return [bestCharCode, bestDistance];
+};

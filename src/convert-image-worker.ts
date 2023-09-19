@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import hammingBKTree from "./hamming-bk-tree";
+import { findNearest } from "./hamming-bk-tree";
 
 const bitCountTable = Uint8Array.from({ length: 256 }, (_, i) => 
   (i >> 7) + ((i >> 6) & 1) + ((i >> 5) & 1) + ((i >> 4) & 1) + 
@@ -9,7 +9,7 @@ const bitCountTable = Uint8Array.from({ length: 256 }, (_, i) =>
 
 interface InitMessage {
   type: 'init';
-  charData: Uint8Array;
+  bitPatterns: Uint8Array[];
 }
 
 interface ImageMessage {
@@ -22,12 +22,77 @@ interface ImageMessage {
 
 type Message = InitMessage | ImageMessage;
 
+type HSV = [hueSin: number, hueCos: number, saturation: number, value: number];
+
+const hsvDist = (
+  [ hueSin1, hueCos1, sat1, val1 ]: HSV,
+  [ hueSin2, hueCos2, sat2, val2 ]: HSV,
+) => {
+  const h1 = Math.atan2(hueSin1, hueCos1);
+  const h2 = Math.atan2(hueSin2, hueCos2);
+  let hDelta = Math.abs(h1 - h2) / Math.PI;
+  if (hDelta > 1) hDelta = 2 - hDelta;
+  let sDelta = sat1 - sat2;
+  let vDelta = val1 - val2;
+  // weighted to account for low saturation and low value
+  // making other factors less distinguishable/meaningful
+  const weightH = (val1 * sat1 + val2 * sat2) / 2;
+  const weightS = (val1 + val2) / 2;  
+  return (
+    (hDelta * hDelta) * weightH
+    + (sDelta * sDelta) * weightS
+    + (vDelta * vDelta)
+  );
+};
+
+const hueToVGA = (hueSin: number, hueCos: number) => {
+  let h = Math.atan2(hueSin, hueCos) * 180 / Math.PI;
+  if (h < 0) h += 360;
+  switch (Math.floor((h + 30) / 60)) {
+    case 0: return 4;
+    case 1: return 6;
+    case 2: return 2;
+    case 3: return 3;
+    case 4: return 1;
+    case 5: return 5;
+    case 6: default: return 4;
+  }
+};
+
+const grayscaleToVGA = (value: number) => {
+  return (value < 0.25) ? 0 : (value < 0.65) ? 8 : (value < 0.9) ? 7 : 15;
+};
+
+const hsvToVGA = ([hueSin, hueCos, saturation, value]: HSV) => {
+  if (saturation < 0.5 || value < 0.25) {
+    return grayscaleToVGA(value);
+  }
+  const baseSection = hueToVGA(hueSin, hueCos);
+  return (value >= 0.75) ? baseSection + 8 : baseSection;
+};
+
+let bitPatterns: Uint8Array[] | null = null;
+
+const offsetsToBitmap = (v: number[]): Uint8Array => {
+  const bitmap = new Uint8Array(16);
+  for (const offset of v) {
+    const bit = offset & 7, byte = offset >>> 3;
+    bitmap[byte] |= (0x80 >> bit);
+  }
+  return bitmap;
+};
+
 onmessage = ({ data: message }: { data: Message }) => {
   switch (message.type) {
     case 'init': {
+      bitPatterns = message.bitPatterns;
       break;
     }
     case 'image': {
+      if (!bitPatterns) {
+        postMessage({type: 'error', error:'init not called'});
+        break;
+      }
       const { rgba } = message;
       const rgba_stride = message.width * 4;
       const pixel_width = message.width - (message.width % 8);
@@ -80,68 +145,103 @@ onmessage = ({ data: message }: { data: Message }) => {
       const cellBuffer = new Uint16Array(cellsAcross * cellsDown);
       for (let cellY = 0; cellY < cellsDown; cellY++)
       for (let cellX = 0; cellX < cellsAcross; cellX++) {
-        let totalHSin = 0, totalHCos = 0, totalS = 0, totalV = 0;
-        for (let yo = 0; yo < 16; yo++)
-        for (let xo = 0; xo < 8; xo++) {
+        const getHSV = (xo: number, yo: number): HSV => {
           const component_i = (cellY * 16 + yo) * pixel_width + cellX * 8 + xo;
-          totalHSin += huesSin[component_i];
-          totalHCos += huesCos[component_i];
-          totalS += saturations[component_i];
-          totalV += values[component_i];
+          return [
+            huesSin[component_i],
+            huesCos[component_i],
+            saturations[component_i],
+            values[component_i],
+          ];
+        };
+
+        const c1_hsv = getHSV(0, 0);
+        let c2_hsv = getHSV(1, 0), c2_dist = hsvDist(c1_hsv, c2_hsv);
+
+        for (let test_i = 2; test_i < 8*16; test_i++) {
+          const test_hsv = getHSV(test_i % 8, Math.floor(test_i / 8));
+          const test_dist = hsvDist(c1_hsv, test_hsv);
+          if (test_dist > c2_dist) {
+            c2_hsv = test_hsv;
+            c2_dist = test_dist;
+          }
         }
-        const meanH = Math.atan2(totalHSin, totalHCos);
-        const meanS = totalS / (8 * 16);
-        const meanV = totalV / (8 * 16);
-        let varSumH = 0, varSumS = 0, varSumV = 0;
-        for (let yo = 0; yo < 16; yo++)
-        for (let xo = 0; xo < 8; xo++) {
-          const i = ((cellY * 16 + yo) * pixel_width + cellX * 8 + xo);
-          const h = Math.atan2(huesSin[i], huesCos[i]);
-          let delta = Math.abs(h - meanH);
-          delta = delta > Math.PI ? Math.PI * 2 - delta : delta;
-          varSumH += delta * delta;
-          varSumS += saturations[i] * saturations[i];
-          varSumV += values[i] * values[i];
-        }
-        const varianceH = varSumH / (8 * 16);
-        const varianceS = varSumS / (8 * 16);
-        const varianceV = varSumV / (8 * 16);
-        const stdDevH = Math.sqrt(varianceH);
-        const stdDevS = Math.sqrt(varianceS);
-        const stdDevV = Math.sqrt(varianceV);
+
+        const c1_vga = hsvToVGA(c1_hsv);
+        const c2_vga = hsvToVGA(c2_hsv);
+
         let fgColor = 7, bgColor = 0, charCode = 32;
-        const s = meanS * 100;
-        const v = meanV * 100;
-        let h = meanH * 180 / Math.PI;
-        if (h < 0) h += 360;
-        const VALUE_DARK_THRESHOLD = 70;
-        if (s < 70) {
-          if (v < 25) bgColor = 0;
-          else if (v < 65) bgColor = 8;
-          else if (v < 90) bgColor = 7;
-          else bgColor = 15;
-        }
-        else if (v < 10) {
-          bgColor = 0;
-        }
-        else if (h < 30 || h >= 330) {
-          bgColor = (v < VALUE_DARK_THRESHOLD) ? 4 : 4+8;
-        }
-        else if (h < 90) {
-          bgColor = (v < VALUE_DARK_THRESHOLD) ? 6 : 6+8;
-        }
-        else if (h < 150) {
-          bgColor = (v < VALUE_DARK_THRESHOLD) ? 2 : 2+8;
-        }
-        else if (h < 210) {
-          bgColor = (v < VALUE_DARK_THRESHOLD) ? 3 : 3+8;
-        }
-        else if (h < 270) {
-          bgColor = (v < VALUE_DARK_THRESHOLD) ? 1 : 1+8;
+
+        if (c1_vga === c2_vga) {
+          bgColor = c1_vga;
         }
         else {
-          bgColor = (v < VALUE_DARK_THRESHOLD) ? 5 : 5+8;
+          const getCentroids = (start1: HSV, start2: HSV): [{which:number[], hsv:HSV}, {which:number[], hsv:HSV}] => {
+            const in1: number[] = [], in2: number[] = [];
+            let totalHCos1 = 0, totalHSin1 = 0, totalS1 = 0, totalV1 = 0, count1 = 0;
+            let totalHCos2 = 0, totalHSin2 = 0, totalS2 = 0, totalV2 = 0, count2 = 0;
+            for (let yo = 0; yo < 16; yo++)
+            for (let xo = 0; xo < 8; xo++) {
+              const hsv = getHSV(xo, yo);
+              if (hsvDist(hsv, start1) < hsvDist(hsv, start2)) {
+                in1.push(yo*8 + xo);
+                totalHSin1 += hsv[0];
+                totalHCos1 += hsv[1];
+                totalS1 += hsv[2];
+                totalV1 += hsv[3];
+                count1++;
+              }
+              else {
+                in2.push(yo*8 + xo);
+                totalHSin2 += hsv[0];
+                totalHCos2 += hsv[1];
+                totalS2 += hsv[2];
+                totalV2 += hsv[3];
+                count2++;
+              }
+            }
+            const ang1 = Math.atan2(totalHSin1, totalHCos1);
+            const ang2 = Math.atan2(totalHSin2, totalHCos2);
+            const res1 = {which:in1, hsv:[Math.sin(ang1), Math.cos(ang1), totalS1/count1, totalV1/count1] as HSV};
+            const res2 = {which:in2, hsv:[Math.sin(ang2), Math.cos(ang2), totalS2/count2, totalV2/count2] as HSV};
+            return (in1.length < in2.length) ? [res2, res1] : [res1, res2];
+          };
+
+          const hsvToString = (hsv: HSV) => {
+            let h = Math.atan2(hsv[0], hsv[1]) * 180 / Math.PI;
+            if (h < 0) h += 360;
+            const s = hsv[2] * 100;
+            const v = hsv[3] * 100;
+            return `hsv(${h.toFixed(2)}°, ${s.toFixed(2)}%, ${v.toFixed(2)}%}`;
+          };
+
+          let centroids = getCentroids(c1_hsv, c2_hsv);
+          let maxIterations = 100;
+          const MIN_DELTA = 1e-3;
+          do {
+            const oldCentroids = centroids;
+            const newCentroids = getCentroids(centroids[0].hsv, centroids[1].hsv);
+            centroids = newCentroids;
+            if (centroids[1].which.length === 0 || (hsvDist(oldCentroids[0].hsv, newCentroids[0].hsv) < MIN_DELTA && hsvDist(oldCentroids[1].hsv, newCentroids[1].hsv) < MIN_DELTA)) {
+              break;
+            }
+          } while (--maxIterations > 0);
+
+          fgColor = hsvToVGA(centroids[0].hsv);
+          bgColor = hsvToVGA(centroids[1].hsv);
+          const bitPattern = offsetsToBitmap(centroids[0].which);
+          const [foundCharCode, foundDistance] = findNearest(bitPattern, bitPatterns);
+          charCode = foundCharCode;
+          if (foundDistance > 0) {
+            for (let i = 0; i < 16; i++) bitPattern[i] ^= 0xff;
+            const [invertCharCode, invertDistance] = findNearest(bitPattern, bitPatterns);
+            if (invertDistance < foundDistance) {
+              charCode = invertCharCode;
+              [fgColor, bgColor] = [bgColor, fgColor];
+            }
+          }
         }
+
         cellBuffer[(cellY * cellsAcross) + cellX] = charCode | (fgColor << 8) | (bgColor << 12);
       }
       postMessage({
