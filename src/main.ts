@@ -818,6 +818,8 @@ async function main() {
                           case 7: reverse = true; break;
                           case 22: bold = false; break;
                           case 27: reverse = false; break;
+                          case 39: fgColor = 7; break;
+                          case 49: bgColor = 0; break;
                           default: console.log('['+code+'m');
                         }
                       }
@@ -854,10 +856,65 @@ async function main() {
                     break;
                   }
                   case 'J': {
-                    for (const code of ansiIntegerList(escape.slice(1, -1))) switch (code) {
+                    const codes = ansiIntegerList(escape.slice(1, -1));
+                    if (codes.length === 0) {
+                      if (cursorOffset < (SCREEN_WIDTH*SCREEN_HEIGHT)) {
+                        newBuffer.fill(
+                          ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                          Math.max(0, cursorOffset - cursorOffset % SCREEN_WIDTH),
+                        );
+                      }
+                    }
+                    else for (const code of codes) switch (code) {
+                      case 1: {
+                        if (cursorOffset > 0) {
+                          newBuffer.fill(
+                            ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                            0,
+                            Math.min(SCREEN_WIDTH * SCREEN_HEIGHT, (cursorOffset - cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH),
+                          );
+                        }
+                        break;
+                      }
                       case 2: {
-                        newBuffer.fill( (reverse ? ((bgColor << 8) | (fgColor << 12) | (bold ? 0x8000 : 0)) : ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0))) );
+                        newBuffer.fill( ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)) );
                         cursorOffset = 0;
+                        break;
+                      }
+                      default: {
+                        console.log('['+code+'J');
+                        break;
+                      }
+                    }
+                    break;
+                  }
+                  case 'K': {
+                    if (cursorOffset < 0 || cursorOffset >= SCREEN_WIDTH*SCREEN_HEIGHT) {
+                      break;
+                    }
+                    const codes = ansiIntegerList(escape.slice(1, -1));
+                    if (codes.length === 0) {
+                      newBuffer.fill(
+                        ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                        cursorOffset,
+                        cursorOffset - (cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH,
+                      );
+                    }
+                    else for (const code of codes) switch (code) {
+                      case 1: {
+                        newBuffer.fill(
+                          ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                          cursorOffset - (cursorOffset % SCREEN_WIDTH),
+                          cursorOffset + 1,
+                        );
+                        break;
+                      }
+                      case 2: {
+                        newBuffer.fill(
+                          ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                          cursorOffset - (cursorOffset % SCREEN_WIDTH),
+                          cursorOffset - (cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH,
+                        );
                         break;
                       }
                       default: {
