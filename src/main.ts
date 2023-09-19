@@ -646,6 +646,8 @@ const codepageChars = [
 
 const codepageMap = new Map<string, number>(codepageChars.map((v, i) => [String.fromCodePoint(v), i]));
 
+const ansiIntegerList = (v: string) => v ? v.replace(/;$/, '').split(/;/g).map(Number) : [];
+
 async function main() {
   const req = await reqPromise;
   const b = await req.blob();
@@ -739,6 +741,181 @@ async function main() {
       .catch(e => {
         console.error(e);
       });
+    }
+    else {
+      const ansiFiles = files.filter(v => /\.ans$/i.test(v.name));
+      if (ansiFiles.length > 0) {
+        ansiFiles[0].arrayBuffer().then(ab => {
+          let fgColor = 7, bgColor = 0;
+          let reverse = false, bold = false;
+          let ansiOffset = 0;
+          let cursorOffset = 0;
+          let savedCursorOffset = 0;
+          const u8 = new Uint8Array(ab);
+          const newBuffer = new Uint16Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+          ansiLoop: while (ansiOffset < u8.length) {
+            if (u8[ansiOffset] === 0x1B) {
+              let buffer: string[] = [];
+              while (++ansiOffset < u8.length) {
+                const c = String.fromCharCode(u8[ansiOffset]);
+                buffer.push(c);
+                if (buffer.length === 1) {
+                  if (buffer[0] !== '[') {
+                    ansiOffset++;
+                    break;
+                  }
+                }
+                else if (/[@A-Z\[\]\^_a-z\{\|\}~]/.test(c)) {
+                  ansiOffset++;
+                  break;
+                }
+              }
+              const escape = buffer.join('');
+              if (escape[0] === '[') {
+                switch (escape.slice(-1)) {
+                  case 'm': {
+                    if (/^\[(?:\d+(?:;\d+)*)?m$/.test(escape)) {
+                      for (const code of ansiIntegerList(escape.slice(1, -1))) {
+                        switch (code) {
+                          case 30: fgColor = 0; break;
+                          case 34: fgColor = 1; break;
+                          case 32: fgColor = 2; break;
+                          case 36: fgColor = 3; break;
+                          case 31: fgColor = 4; break;
+                          case 35: fgColor = 5; break;
+                          case 33: fgColor = 6; break;
+                          case 37: fgColor = 7; break;
+                          case 90: fgColor = 8; break;
+                          case 94: fgColor = 9; break;
+                          case 92: fgColor = 10; break;
+                          case 96: fgColor = 11; break;
+                          case 91: fgColor = 12; break;
+                          case 95: fgColor = 13; break;
+                          case 93: fgColor = 14; break;
+                          case 97: fgColor = 15; break;
+
+                          case 40: bgColor = 0; break;
+                          case 44: bgColor = 1; break;
+                          case 42: bgColor = 2; break;
+                          case 46: bgColor = 3; break;
+                          case 41: bgColor = 4; break;
+                          case 45: bgColor = 5; break;
+                          case 43: bgColor = 6; break;
+                          case 47: bgColor = 7; break;
+                          case 100: bgColor = 8; break;
+                          case 104: bgColor = 9; break;
+                          case 102: bgColor = 10; break;
+                          case 106: bgColor = 11; break;
+                          case 101: bgColor = 12; break;
+                          case 105: bgColor = 13; break;
+                          case 103: bgColor = 14; break;
+                          case 107: bgColor = 15; break;
+
+                          case 0: fgColor = 7; bgColor = 0; reverse = false; bold = false; break;
+                          case 1: bold = true; break;
+                          case 4: break; // underline
+                          case 5: break; // blink
+                          case 7: reverse = true; break;
+                          case 22: bold = false; break;
+                          case 27: reverse = false; break;
+                          default: console.log('['+code+'m');
+                        }
+                      }
+                    }
+                    break;
+                  }
+                  case 'A': {
+                    cursorOffset -= (ansiIntegerList(escape.slice(1, -1))[0] ?? 1) * SCREEN_WIDTH;
+                    break;
+                  }
+                  case 'B': {
+                    cursorOffset += (ansiIntegerList(escape.slice(1, -1))[0] ?? 1) * SCREEN_WIDTH;
+                    break;
+                  }
+                  case 'C': {
+                    cursorOffset += (ansiIntegerList(escape.slice(1, -1))[0] ?? 1);
+                    break;
+                  }
+                  case 'D': {
+                    cursorOffset -= (ansiIntegerList(escape.slice(1, -1))[0] ?? 1);
+                    break;
+                  }
+                  case 'H': case 'f': {
+                    const data = ansiIntegerList(escape.slice(1, -1));
+                    cursorOffset = ((data[0] ?? 1) - 1) * SCREEN_WIDTH + ((data[1] ?? 1) - 1);
+                    break;
+                  }
+                  case 's': {
+                    savedCursorOffset = cursorOffset;
+                    break;
+                  }
+                  case 'u': {
+                    cursorOffset = savedCursorOffset;
+                    break;
+                  }
+                  case 'J': {
+                    for (const code of ansiIntegerList(escape.slice(1, -1))) switch (code) {
+                      case 2: {
+                        newBuffer.fill( (reverse ? ((bgColor << 8) | (fgColor << 12) | (bold ? 0x8000 : 0)) : ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0))) );
+                        cursorOffset = 0;
+                        break;
+                      }
+                      default: {
+                        console.log('['+code+'J');
+                        break;
+                      }
+                    }
+                    break;
+                  }
+                  default: {
+                    console.log(escape);
+                    break;
+                  }
+                }
+              }
+              else {
+                console.log(escape);
+              }
+            }
+            else switch (u8[ansiOffset]) {
+              case 0x0D: {
+                cursorOffset -= cursorOffset % SCREEN_WIDTH;
+                ansiOffset++;
+                break;
+              }
+              case 0x0A: {
+                cursorOffset += SCREEN_WIDTH;
+                ansiOffset++;
+                break;
+              }
+              case 0x1A: {
+                break ansiLoop;
+              }
+              default: {
+                if (cursorOffset >= 0 && cursorOffset < SCREEN_WIDTH*SCREEN_HEIGHT) {
+                  newBuffer[cursorOffset++] = u8[ansiOffset++] | (reverse ? ((bgColor << 8) | (fgColor << 12) | (bold ? 0x8000 : 0)) : ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)));
+                }
+                else {
+                  cursorOffset++;
+                  ansiOffset++;
+                }
+                break;  
+              }
+            }
+          }
+          temp1.set(screen.buffer);
+          screen.buffer.set(newBuffer);
+          for (let y = 0; y < SCREEN_HEIGHT; y++)
+          for (let x = 0; x < SCREEN_WIDTH; x++) {
+            screen.updateCanvas(x, y);
+          }
+          temp2.set(screen.buffer);
+          addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+          .then(newUpdateId => { headUpdateId = newUpdateId; });
+          ctx!.globalCompositeOperation = 'copy';
+          ctx!.drawImage(screen.canvas, 0, 0);
+        });
+      }
     }
   });
   document.addEventListener('keydown', e => {
