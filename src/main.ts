@@ -158,10 +158,11 @@ function* emptyRect(x1: number, y1: number, x2: number, y2: number): Generator<[
   }
 }
 
-function openDialog() {
-  return new Promise<Blob | null>((resolve, reject) => {
+function openDialog(accept?: string[]) {
+  return new Promise<File | null>((resolve, reject) => {
       const input = document.createElement('input');
       input.type = 'file';
+      if (accept) input.accept = accept.join(',');
       
       // Handle file selection
       input.onchange = (e) => {
@@ -695,283 +696,11 @@ async function main() {
   };
   document.getElementById('undo')!.onclick = performUndo;
   document.getElementById('redo')!.onclick = performRedo;
-  window.addEventListener('paste', e => {
+  window.addEventListener('paste', async e => {
     const files = Array.from(e.clipboardData?.files || []);
-    const imageFiles = files.filter(v => v.type.startsWith('image/'));
-    if (imageFiles.length > 0) {
-      e.preventDefault();
-      let promise = createImageBitmap(imageFiles[0]);
-      for (let i = 1; i < imageFiles.length; i++) {
-        promise = promise.catch(() => createImageBitmap(imageFiles[i]));
-      }
-      promise.then(async ib => {
-        if (ib.width === 0 || ib.height === 0) {
-          throw new Error('empty image');
-        }
-        if (ib.width !== 640 || ib.height !== 400) {
-          ib = await createImageBitmap(ib, {resizeWidth: 640, resizeHeight: 400, resizeQuality: ib.width > 640 || ib.height > 400 ? 'high' : 'pixelated'});
-        }
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = ib.width;
-        tempCanvas.height = ib.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        if (!tempCtx) throw new Error('unable to create canvas context');
-        tempCtx.globalCompositeOperation = 'copy';
-        tempCtx.drawImage(ib, 0, 0);
-        const pixels = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
-        const webworker = new Worker('./convert-image-worker.js');
-        webworker.onmessage = ({ data: { type, data } }: { data: { type: string, data: Uint16Array } }) => {
-          if (type === 'image-done') {
-            temp1.set(screen.buffer);
-            screen.buffer.set(data);
-            for (let y = 0; y < SCREEN_HEIGHT; y++)
-            for (let x = 0; x < SCREEN_WIDTH; x++) {
-              screen.updateCanvas(x, y);
-            }
-            temp2.set(screen.buffer);
-            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
-            .then(newUpdateId => { headUpdateId = newUpdateId; });
-            ctx!.globalCompositeOperation = 'copy';
-            ctx!.drawImage(screen.canvas, 0, 0);
-          }
-        };
-        webworker.postMessage({ type: 'init', bitPatterns });
-        webworker.postMessage({ type: 'image', rgba: pixels, width: ib.width, height: ib.height }, [pixels.buffer]);
-      })
-      .catch(e => {
-        console.error(e);
-      });
-    }
-    else {
-      const ansiFiles = files.filter(v => /\.ans$/i.test(v.name));
-      if (ansiFiles.length > 0) {
-        ansiFiles[0].arrayBuffer().then(ab => {
-          let fgColor = 7, bgColor = 0;
-          let reverse = false, bold = false;
-          let ansiOffset = 0;
-          let cursorOffset = 0;
-          let savedCursorOffset = 0;
-          const u8 = new Uint8Array(ab);
-          const newBuffer = new Uint16Array(SCREEN_WIDTH * SCREEN_HEIGHT);
-          ansiLoop: while (ansiOffset < u8.length) {
-            if (u8[ansiOffset] === 0x1B) {
-              let buffer: string[] = [];
-              while (++ansiOffset < u8.length) {
-                const c = String.fromCharCode(u8[ansiOffset]);
-                buffer.push(c);
-                if (buffer.length === 1) {
-                  if (buffer[0] !== '[') {
-                    ansiOffset++;
-                    break;
-                  }
-                }
-                else if (/[@A-Z\[\]\^_a-z\{\|\}~]/.test(c)) {
-                  ansiOffset++;
-                  break;
-                }
-              }
-              const escape = buffer.join('');
-              if (escape[0] === '[') {
-                switch (escape.slice(-1)) {
-                  case 'm': {
-                    if (/^\[(?:\d+(?:;\d+)*)?m$/.test(escape)) {
-                      for (const code of ansiIntegerList(escape.slice(1, -1))) {
-                        switch (code) {
-                          case 30: fgColor = 0; break;
-                          case 34: fgColor = 1; break;
-                          case 32: fgColor = 2; break;
-                          case 36: fgColor = 3; break;
-                          case 31: fgColor = 4; break;
-                          case 35: fgColor = 5; break;
-                          case 33: fgColor = 6; break;
-                          case 37: fgColor = 7; break;
-                          case 90: fgColor = 8; break;
-                          case 94: fgColor = 9; break;
-                          case 92: fgColor = 10; break;
-                          case 96: fgColor = 11; break;
-                          case 91: fgColor = 12; break;
-                          case 95: fgColor = 13; break;
-                          case 93: fgColor = 14; break;
-                          case 97: fgColor = 15; break;
-
-                          case 40: bgColor = 0; break;
-                          case 44: bgColor = 1; break;
-                          case 42: bgColor = 2; break;
-                          case 46: bgColor = 3; break;
-                          case 41: bgColor = 4; break;
-                          case 45: bgColor = 5; break;
-                          case 43: bgColor = 6; break;
-                          case 47: bgColor = 7; break;
-                          case 100: bgColor = 8; break;
-                          case 104: bgColor = 9; break;
-                          case 102: bgColor = 10; break;
-                          case 106: bgColor = 11; break;
-                          case 101: bgColor = 12; break;
-                          case 105: bgColor = 13; break;
-                          case 103: bgColor = 14; break;
-                          case 107: bgColor = 15; break;
-
-                          case 0: fgColor = 7; bgColor = 0; reverse = false; bold = false; break;
-                          case 1: bold = true; break;
-                          case 4: break; // underline
-                          case 5: break; // blink
-                          case 7: reverse = true; break;
-                          case 22: bold = false; break;
-                          case 27: reverse = false; break;
-                          case 39: fgColor = 7; break;
-                          case 49: bgColor = 0; break;
-                          default: console.log('['+code+'m');
-                        }
-                      }
-                    }
-                    break;
-                  }
-                  case 'A': {
-                    cursorOffset -= (ansiIntegerList(escape.slice(1, -1))[0] ?? 1) * SCREEN_WIDTH;
-                    break;
-                  }
-                  case 'B': {
-                    cursorOffset += (ansiIntegerList(escape.slice(1, -1))[0] ?? 1) * SCREEN_WIDTH;
-                    break;
-                  }
-                  case 'C': {
-                    cursorOffset += (ansiIntegerList(escape.slice(1, -1))[0] ?? 1);
-                    break;
-                  }
-                  case 'D': {
-                    cursorOffset -= (ansiIntegerList(escape.slice(1, -1))[0] ?? 1);
-                    break;
-                  }
-                  case 'H': case 'f': {
-                    const data = ansiIntegerList(escape.slice(1, -1));
-                    cursorOffset = ((data[0] ?? 1) - 1) * SCREEN_WIDTH + ((data[1] ?? 1) - 1);
-                    break;
-                  }
-                  case 's': {
-                    savedCursorOffset = cursorOffset;
-                    break;
-                  }
-                  case 'u': {
-                    cursorOffset = savedCursorOffset;
-                    break;
-                  }
-                  case 'J': {
-                    const codes = ansiIntegerList(escape.slice(1, -1));
-                    if (codes.length === 0) {
-                      if (cursorOffset < (SCREEN_WIDTH*SCREEN_HEIGHT)) {
-                        newBuffer.fill(
-                          ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
-                          Math.max(0, cursorOffset - cursorOffset % SCREEN_WIDTH),
-                        );
-                      }
-                    }
-                    else for (const code of codes) switch (code) {
-                      case 1: {
-                        if (cursorOffset > 0) {
-                          newBuffer.fill(
-                            ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
-                            0,
-                            Math.min(SCREEN_WIDTH * SCREEN_HEIGHT, (cursorOffset - cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH),
-                          );
-                        }
-                        break;
-                      }
-                      case 2: {
-                        newBuffer.fill( ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)) );
-                        cursorOffset = 0;
-                        break;
-                      }
-                      default: {
-                        console.log('['+code+'J');
-                        break;
-                      }
-                    }
-                    break;
-                  }
-                  case 'K': {
-                    if (cursorOffset < 0 || cursorOffset >= SCREEN_WIDTH*SCREEN_HEIGHT) {
-                      break;
-                    }
-                    const codes = ansiIntegerList(escape.slice(1, -1));
-                    if (codes.length === 0) {
-                      newBuffer.fill(
-                        ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
-                        cursorOffset,
-                        cursorOffset - (cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH,
-                      );
-                    }
-                    else for (const code of codes) switch (code) {
-                      case 1: {
-                        newBuffer.fill(
-                          ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
-                          cursorOffset - (cursorOffset % SCREEN_WIDTH),
-                          cursorOffset + 1,
-                        );
-                        break;
-                      }
-                      case 2: {
-                        newBuffer.fill(
-                          ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
-                          cursorOffset - (cursorOffset % SCREEN_WIDTH),
-                          cursorOffset - (cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH,
-                        );
-                        break;
-                      }
-                      default: {
-                        console.log('['+code+'J');
-                        break;
-                      }
-                    }
-                    break;
-                  }
-                  default: {
-                    console.log(escape);
-                    break;
-                  }
-                }
-              }
-              else {
-                console.log(escape);
-              }
-            }
-            else switch (u8[ansiOffset]) {
-              case 0x0D: {
-                cursorOffset -= cursorOffset % SCREEN_WIDTH;
-                ansiOffset++;
-                break;
-              }
-              case 0x0A: {
-                cursorOffset += SCREEN_WIDTH;
-                ansiOffset++;
-                break;
-              }
-              case 0x1A: {
-                break ansiLoop;
-              }
-              default: {
-                if (cursorOffset >= 0 && cursorOffset < SCREEN_WIDTH*SCREEN_HEIGHT) {
-                  newBuffer[cursorOffset++] = u8[ansiOffset++] | (reverse ? ((bgColor << 8) | (fgColor << 12) | (bold ? 0x8000 : 0)) : ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)));
-                }
-                else {
-                  cursorOffset++;
-                  ansiOffset++;
-                }
-                break;  
-              }
-            }
-          }
-          temp1.set(screen.buffer);
-          screen.buffer.set(newBuffer);
-          for (let y = 0; y < SCREEN_HEIGHT; y++)
-          for (let x = 0; x < SCREEN_WIDTH; x++) {
-            screen.updateCanvas(x, y);
-          }
-          temp2.set(screen.buffer);
-          addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
-          .then(newUpdateId => { headUpdateId = newUpdateId; });
-          ctx!.globalCompositeOperation = 'copy';
-          ctx!.drawImage(screen.canvas, 0, 0);
-        });
+    for (const file of files) {
+      if (await loadFile(file)) {
+        break;
       }
     }
   });
@@ -2237,21 +1966,302 @@ async function main() {
     link.click();
     setSessionSaved(sessionId, headUpdateId);
   };
-  document.getElementById('load-image')!.onclick = async e => {
-    const blob = await openDialog();
-    if (blob) {
+  const loadFile = async (file: File) => {
+    if ((file.type || '').startsWith('image/') || /\.(?:jpe?g|jfif|pjpeg|pjp|a?png|gif|bmp|ico|cur|tiff?|svg|webp|avif)$/i.test(file.name || '')) {
+      let ib: ImageBitmap;
+      try {
+        ib = await createImageBitmap(file);
+      }
+      catch {
+        return false;
+      }
+      if (ib.width === 0 || ib.height === 0) {
+        console.warn('empty image');
+        return false;
+      }
+      if (ib.width !== 640 || ib.height !== 400) {
+        ib = await createImageBitmap(ib, {resizeWidth: 640, resizeHeight: 400, resizeQuality: ib.width > 640 || ib.height > 400 ? 'high' : 'pixelated'});
+      }
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = ib.width;
+      tempCanvas.height = ib.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) throw new Error('unable to create canvas context');
+      tempCtx.globalCompositeOperation = 'copy';
+      tempCtx.drawImage(ib, 0, 0);
+      const pixels = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+      return await new Promise<boolean>((resolve, reject) => {
+        const webworker = new Worker('./convert-image-worker.js');
+        webworker.onmessage = ({ data: { type, data } }: { data: { type: string, data: Uint16Array } }) => {
+          if (type === 'image-done') {
+            temp1.set(screen.buffer);
+            screen.buffer.set(data);
+            for (let y = 0; y < SCREEN_HEIGHT; y++)
+            for (let x = 0; x < SCREEN_WIDTH; x++) {
+              screen.updateCanvas(x, y);
+            }
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            resolve(true);
+          }
+        };
+        webworker.postMessage({ type: 'init', bitPatterns });
+        webworker.postMessage({ type: 'image', rgba: pixels, width: ib.width, height: ib.height }, [pixels.buffer]);
+      });
+    }
+    if (/\.ans$/i.test(file.name || '')) {
+      const ab = await file.arrayBuffer();
+      let fgColor = 7, bgColor = 0;
+      let reverse = false, bold = false;
+      let ansiOffset = 0;
+      let cursorOffset = 0;
+      let savedCursorOffset = 0;
+      const u8 = new Uint8Array(ab);
+      const newBuffer = new Uint16Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+      ansiLoop: while (ansiOffset < u8.length) {
+        if (u8[ansiOffset] === 0x1B) {
+          let buffer: string[] = [];
+          while (++ansiOffset < u8.length) {
+            const c = String.fromCharCode(u8[ansiOffset]);
+            buffer.push(c);
+            if (buffer.length === 1) {
+              if (buffer[0] !== '[') {
+                ansiOffset++;
+                break;
+              }
+            }
+            else if (/[@A-Z\[\]\^_a-z\{\|\}~]/.test(c)) {
+              ansiOffset++;
+              break;
+            }
+          }
+          const escape = buffer.join('');
+          if (escape[0] === '[') {
+            switch (escape.slice(-1)) {
+              case 'm': {
+                if (/^\[(?:\d+(?:;\d+)*)?m$/.test(escape)) {
+                  for (const code of ansiIntegerList(escape.slice(1, -1))) {
+                    switch (code) {
+                      case 30: fgColor = 0; break;
+                      case 34: fgColor = 1; break;
+                      case 32: fgColor = 2; break;
+                      case 36: fgColor = 3; break;
+                      case 31: fgColor = 4; break;
+                      case 35: fgColor = 5; break;
+                      case 33: fgColor = 6; break;
+                      case 37: fgColor = 7; break;
+                      case 90: fgColor = 8; break;
+                      case 94: fgColor = 9; break;
+                      case 92: fgColor = 10; break;
+                      case 96: fgColor = 11; break;
+                      case 91: fgColor = 12; break;
+                      case 95: fgColor = 13; break;
+                      case 93: fgColor = 14; break;
+                      case 97: fgColor = 15; break;
+
+                      case 40: bgColor = 0; break;
+                      case 44: bgColor = 1; break;
+                      case 42: bgColor = 2; break;
+                      case 46: bgColor = 3; break;
+                      case 41: bgColor = 4; break;
+                      case 45: bgColor = 5; break;
+                      case 43: bgColor = 6; break;
+                      case 47: bgColor = 7; break;
+                      case 100: bgColor = 8; break;
+                      case 104: bgColor = 9; break;
+                      case 102: bgColor = 10; break;
+                      case 106: bgColor = 11; break;
+                      case 101: bgColor = 12; break;
+                      case 105: bgColor = 13; break;
+                      case 103: bgColor = 14; break;
+                      case 107: bgColor = 15; break;
+
+                      case 0: fgColor = 7; bgColor = 0; reverse = false; bold = false; break;
+                      case 1: bold = true; break;
+                      case 4: break; // underline
+                      case 5: break; // blink
+                      case 7: reverse = true; break;
+                      case 22: bold = false; break;
+                      case 27: reverse = false; break;
+                      case 39: fgColor = 7; break;
+                      case 49: bgColor = 0; break;
+                      default: console.log('['+code+'m');
+                    }
+                  }
+                }
+                break;
+              }
+              case 'A': {
+                cursorOffset -= (ansiIntegerList(escape.slice(1, -1))[0] ?? 1) * SCREEN_WIDTH;
+                break;
+              }
+              case 'B': {
+                cursorOffset += (ansiIntegerList(escape.slice(1, -1))[0] ?? 1) * SCREEN_WIDTH;
+                break;
+              }
+              case 'C': {
+                cursorOffset += (ansiIntegerList(escape.slice(1, -1))[0] ?? 1);
+                break;
+              }
+              case 'D': {
+                cursorOffset -= (ansiIntegerList(escape.slice(1, -1))[0] ?? 1);
+                break;
+              }
+              case 'H': case 'f': {
+                const data = ansiIntegerList(escape.slice(1, -1));
+                cursorOffset = ((data[0] ?? 1) - 1) * SCREEN_WIDTH + ((data[1] ?? 1) - 1);
+                break;
+              }
+              case 's': {
+                savedCursorOffset = cursorOffset;
+                break;
+              }
+              case 'u': {
+                cursorOffset = savedCursorOffset;
+                break;
+              }
+              case 'J': {
+                const codes = ansiIntegerList(escape.slice(1, -1));
+                if (codes.length === 0) {
+                  if (cursorOffset < (SCREEN_WIDTH*SCREEN_HEIGHT)) {
+                    newBuffer.fill(
+                      ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                      Math.max(0, cursorOffset - cursorOffset % SCREEN_WIDTH),
+                    );
+                  }
+                }
+                else for (const code of codes) switch (code) {
+                  case 1: {
+                    if (cursorOffset > 0) {
+                      newBuffer.fill(
+                        ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                        0,
+                        Math.min(SCREEN_WIDTH * SCREEN_HEIGHT, (cursorOffset - cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH),
+                      );
+                    }
+                    break;
+                  }
+                  case 2: {
+                    newBuffer.fill( ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)) );
+                    cursorOffset = 0;
+                    break;
+                  }
+                  default: {
+                    console.log('['+code+'J');
+                    break;
+                  }
+                }
+                break;
+              }
+              case 'K': {
+                if (cursorOffset < 0 || cursorOffset >= SCREEN_WIDTH*SCREEN_HEIGHT) {
+                  break;
+                }
+                const codes = ansiIntegerList(escape.slice(1, -1));
+                if (codes.length === 0) {
+                  newBuffer.fill(
+                    ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                    cursorOffset,
+                    cursorOffset - (cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH,
+                  );
+                }
+                else for (const code of codes) switch (code) {
+                  case 1: {
+                    newBuffer.fill(
+                      ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                      cursorOffset - (cursorOffset % SCREEN_WIDTH),
+                      cursorOffset + 1,
+                    );
+                    break;
+                  }
+                  case 2: {
+                    newBuffer.fill(
+                      ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                      cursorOffset - (cursorOffset % SCREEN_WIDTH),
+                      cursorOffset - (cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH,
+                    );
+                    break;
+                  }
+                  default: {
+                    console.log('['+code+'J');
+                    break;
+                  }
+                }
+                break;
+              }
+              default: {
+                console.log(escape);
+                break;
+              }
+            }
+          }
+          else {
+            console.log(escape);
+          }
+        }
+        else switch (u8[ansiOffset]) {
+          case 0x0D: {
+            cursorOffset -= cursorOffset % SCREEN_WIDTH;
+            ansiOffset++;
+            break;
+          }
+          case 0x0A: {
+            cursorOffset += SCREEN_WIDTH;
+            ansiOffset++;
+            break;
+          }
+          case 0x1A: {
+            break ansiLoop;
+          }
+          default: {
+            if (cursorOffset >= 0 && cursorOffset < SCREEN_WIDTH*SCREEN_HEIGHT) {
+              newBuffer[cursorOffset++] = u8[ansiOffset++] | (reverse ? ((bgColor << 8) | (fgColor << 12) | (bold ? 0x8000 : 0)) : ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)));
+            }
+            else {
+              cursorOffset++;
+              ansiOffset++;
+            }
+            break;  
+          }
+        }
+      }
+      temp1.set(screen.buffer);
+      screen.buffer.set(newBuffer);
+      for (let y = 0; y < SCREEN_HEIGHT; y++)
+      for (let x = 0; x < SCREEN_WIDTH; x++) {
+        screen.updateCanvas(x, y);
+      }
+      temp2.set(screen.buffer);
+      addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+      .then(newUpdateId => { headUpdateId = newUpdateId; });
+      ctx!.globalCompositeOperation = 'copy';
+      ctx!.drawImage(screen.canvas, 0, 0);
+      return true;
+    }
+    if ((file.type || 'application/octet-stream') === 'application/octet-stream' && file.size === SCREEN_WIDTH*SCREEN_HEIGHT*2) {
       const temp3 = new Uint16Array(screen.buffer);
       try {
-        await screen.loadBlob(blob);
+        await screen.loadBlob(file);
       }
       catch (e) {
         alert(e);
-        return;
+        return false;
       }
       temp2.set(screen.buffer);
       addSessionUpdate(sessionId, headUpdateId, temp3, temp2)
       .then(newUpdateId => { headUpdateId = newUpdateId; });  
       ctx.drawImage(screen.canvas, 0, 0);
+      return true;
+    }
+    return false;
+  };
+  document.getElementById('load-image')!.onclick = async e => {
+    const file = await openDialog(['.dat', 'image/*', '.ans']);
+    if (file) {
+      loadFile(file);
     }
   };
   document.getElementById('clear-image')!.onclick = e => {
@@ -2262,6 +2272,45 @@ async function main() {
     .then(newUpdateId => { headUpdateId = newUpdateId; });
     ctx.drawImage(screen.canvas, 0, 0);
   };
+
+  // Counter to keep track of drag enter/leave events
+  let dragCounter = 0;
+
+  // Drag enter event handler
+  document.body.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragCounter++;
+    document.body.classList.add('dropping');
+  });
+
+  // Drag leave event handler
+  document.body.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter === 0) {
+      document.body.classList.remove('dropping');
+    }
+  });
+
+  // Drag over event handler
+  document.body.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  // Drop event handler
+  document.body.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    dragCounter = 0;
+    document.body.classList.remove('dropping');
+    
+    for (const file of e.dataTransfer?.files || []) {
+      if (await loadFile(file)) {
+        break;
+      }
+    }
+  });
 }
 
 window.addEventListener('DOMContentLoaded', main, {once: true});
