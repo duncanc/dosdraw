@@ -158,6 +158,41 @@ function* emptyRect(x1: number, y1: number, x2: number, y2: number): Generator<[
   }
 }
 
+const vgaToLightness = (vga: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15) => {
+  switch (vga) {
+    case 0: return 0;
+    case 1: return 26.7;
+    case 2: return 26.7;
+    case 3: return 26.7;
+    case 4: return 26.7;
+    case 5: return 26.7;
+    case 6: return 26.7;
+    case 7: return 80;
+    case 8: return 50;
+    case 9: return 50;
+    case 10: return 50;
+    case 11: return 50;
+    case 12: return 50;
+    case 13: return 50;
+    case 14: return 50;
+    case 15: return 100;
+    default: return 50;
+  }
+};
+
+const vgaWithLightness = (vga: number, lightness: number) => {
+  if (lightness <= 0) {
+    return 0;
+  }
+  if (lightness >= 100) {
+    return 15;
+  }
+  if ((vga&7)%7 === 0) {
+    return (lightness > 65) ? 7 : 8;
+  }
+  return (lightness < 37.5) ? vga & ~8 : vga | 8;
+}
+
 function openDialog(accept?: string[]) {
   return new Promise<File | null>((resolve, reject) => {
       const input = document.createElement('input');
@@ -1809,6 +1844,124 @@ async function main() {
                 newChar = 0xDB; newFG = gradient[intPart+1]; newBG = gradient[intPart];
               }
             }
+            if (newChar !== charCode || newFG !== fgColor || newBG !== bgColor) {
+              screenOverlay.putChar(x, y, newChar, newFG, newBG);
+              overlayCtx!.globalCompositeOperation = 'copy';
+              overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            }
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) {
+              return;
+            }
+            temp1.set(screen.buffer);
+            screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
+    darken: () => {
+      canvas.onpointerdown = e => {
+        const { pointerId, pointerType, button } = e;
+        if (pointerType === 'mouse' && button === 0) {
+          const foreField = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+          foreField.fill(-1);
+          const backField = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+          backField.fill(-1);
+          const rect = canvas.getBoundingClientRect();
+          let lastTime = performance.now();
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) {
+              return;
+            }
+            const time = performance.now();
+            const timeDiff = time - lastTime;
+            lastTime = time;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            const { charCode, fgColor, bgColor } = screen.getCharInfo(x, y);
+            const i = y*SCREEN_WIDTH + x;
+            if (foreField[i] === -1) {
+              foreField[i] = 1 - vgaToLightness(fgColor)/100;
+            }
+            if (backField[i] === -1) {
+              backField[i] = 1 - vgaToLightness(bgColor)/100;
+            }
+            foreField[i] += Math.min(0.01, timeDiff/1000);
+            backField[i] += Math.min(0.01, timeDiff/1000);
+            let newChar: number = charCode, newFG: number, newBG: number;
+            newFG = vgaWithLightness(fgColor, (1 - foreField[i]) * 100);
+            newBG = vgaWithLightness(bgColor, (1 - backField[i]) * 100);
+            if (newChar !== charCode || newFG !== fgColor || newBG !== bgColor) {
+              screenOverlay.putChar(x, y, newChar, newFG, newBG);
+              overlayCtx!.globalCompositeOperation = 'copy';
+              overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            }
+          }
+          function onpointerup(e: PointerEvent) {
+            if (e.pointerId !== pointerId || e.button !== button) {
+              return;
+            }
+            temp1.set(screen.buffer);
+            screenOverlay.commit();
+            temp2.set(screen.buffer);
+            addSessionUpdate(sessionId, headUpdateId, temp1, temp2)
+            .then(newUpdateId => { headUpdateId = newUpdateId; });
+            overlayCtx!.globalCompositeOperation = 'copy';
+            overlayCtx!.drawImage(screenOverlay.canvas, 0, 0);
+            ctx!.globalCompositeOperation = 'copy';
+            ctx!.drawImage(screen.canvas, 0, 0);
+            canvas.removeEventListener('pointermove', onpointermove);
+            canvas.removeEventListener('pointerup', onpointerup);
+          }
+          canvas.addEventListener('pointermove', onpointermove);
+          canvas.addEventListener('pointerup', onpointerup);
+        }
+      };
+    },
+    lighten: () => {
+      canvas.onpointerdown = e => {
+        const { pointerId, pointerType, button } = e;
+        if (pointerType === 'mouse' && button === 0) {
+          const foreField = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+          foreField.fill(-1);
+          const backField = new Float32Array(SCREEN_WIDTH * SCREEN_HEIGHT);
+          backField.fill(-1);
+          const rect = canvas.getBoundingClientRect();
+          let lastTime = performance.now();
+          function onpointermove(e: PointerEvent) {
+            if (e.pointerId !== pointerId) {
+              return;
+            }
+            const time = performance.now();
+            const timeDiff = time - lastTime;
+            lastTime = time;
+            const x = Math.floor((e.clientX - rect.x) * 80 / rect.width);
+            const y = Math.floor((e.clientY - rect.y) * 25 / rect.height);
+            const { charCode, fgColor, bgColor } = screen.getCharInfo(x, y);
+            const i = y*SCREEN_WIDTH + x;
+            if (foreField[i] === -1) {
+              foreField[i] = vgaToLightness(fgColor)/100;
+            }
+            if (backField[i] === -1) {
+              backField[i] = vgaToLightness(bgColor)/100;
+            }
+            foreField[i] += Math.min(0.01, timeDiff/1000);
+            backField[i] += Math.min(0.01, timeDiff/1000);
+            let newChar: number = charCode, newFG: number, newBG: number;
+            newFG = vgaWithLightness(fgColor, foreField[i] * 100);
+            newBG = vgaWithLightness(bgColor, backField[i] * 100);
             if (newChar !== charCode || newFG !== fgColor || newBG !== bgColor) {
               screenOverlay.putChar(x, y, newChar, newFG, newBG);
               overlayCtx!.globalCompositeOperation = 'copy';
