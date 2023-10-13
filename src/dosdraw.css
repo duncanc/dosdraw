@@ -358,3 +358,34 @@ body.dropping .drop-cover {
   z-index: 100000;
   border-radius: 25px;
 }
+
+.dropdown-container {
+  position: relative;
+}
+
+.arrow {
+  padding-left: 10px;
+  font-size: smaller;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 10em;
+  font-size: small;
+  z-index: 1;
+}
+
+.dropdown-item {
+  padding: 5px;
+  display: block;
+  color: black;
+  text-decoration: none;
+}
+
+.dropdown-item:hover {
+  background-color: #ccf;
+}

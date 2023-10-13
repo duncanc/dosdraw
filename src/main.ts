@@ -2110,7 +2110,64 @@ async function main() {
       e.preventDefault();
     };
   }
-  document.getElementById('save-image')!.onclick = e => {
+
+  const saveButton = document.getElementById('save-image')!;
+  const saveMenu = document.getElementById('save-menu')!;
+
+  let saveMenuIsOpen = false;
+
+  const adjustMenuPosition = () => {
+    const buttonRect = saveButton.getBoundingClientRect();
+    const menuHeight = saveMenu.offsetHeight;
+  
+    const spaceBelow = window.innerHeight - buttonRect.bottom;
+    const spaceAbove = buttonRect.top;
+  
+    if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+      saveMenu.style.top = '';
+      saveMenu.style.bottom = '100%';
+    }
+    else {
+      saveMenu.style.top = '100%';
+      saveMenu.style.bottom = '';
+    }
+  };
+
+  const toggleMenu = () => {
+    saveMenuIsOpen = !saveMenuIsOpen;
+    saveMenu.style.display = saveMenuIsOpen ? 'block' : 'none';
+    if (saveMenuIsOpen) {
+      adjustMenuPosition();
+    }
+  };
+
+  const closeMenu = () => {
+    saveMenuIsOpen = false;
+    saveMenu.style.display = 'none';
+  };
+
+  saveButton.addEventListener('click', toggleMenu);
+
+  addEventListener('blur', () => {
+    closeMenu();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeMenu();
+    }
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    const target = e.target as HTMLElement;
+    if (!saveMenu.contains(target) && !saveButton.contains(target)) {
+      closeMenu();
+    }
+  }, true);
+
+  document.getElementById('save-dat')!.onclick = e => {
+    e.preventDefault();
+    closeMenu();
     const blob = screen.saveBlob();
     const blobLink = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -2118,6 +2175,19 @@ async function main() {
     link.href = blobLink;
     link.click();
     setSessionSaved(sessionId, headUpdateId);
+  };
+
+  document.getElementById('save-png')!.onclick = async e => {
+    e.preventDefault();
+    closeMenu();
+    const blob = await new Promise<Blob>((resolve, reject) => screen.canvas.toBlob((blob) => {
+      if (blob) resolve(blob); else reject('unable to create blob');
+    }));
+    const blobLink = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'dosimage.png';
+    link.href = blobLink;
+    link.click();
   };
   const loadFile = async (file: File) => {
     if ((file.type || '').startsWith('image/') || /\.(?:jpe?g|jfif|pjpeg|pjp|a?png|gif|bmp|ico|cur|tiff?|svg|webp|avif)$/i.test(file.name || '')) {

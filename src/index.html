@@ -38,7 +38,16 @@
           <button id="redo">Redo</button>
         </div>
         <div class="button-row">
-          <button id="save-image">Save</button>
+          <div class="dropdown-container">
+            <button id="save-image">
+              Save
+              <span class="arrow">&#x25BC;</span>
+            </button>
+            <div class="dropdown-menu" id="save-menu">
+              <a href="#" class="dropdown-item" id="save-dat">.DAT</a>
+              <a href="#" class="dropdown-item" id="save-png">.PNG</a>
+            </div>
+          </div>
           <button id="load-image">Load</button>
         </div>
         <button id="clear-image">Clear</button>
