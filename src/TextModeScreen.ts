@@ -61,7 +61,7 @@ const OFFSCREEN = (x: number, y: number) => x < 0 || y < 0 || x >= SCREEN_WIDTH 
 
 export default class TextModeScreen {
   constructor(public drawChar: DrawChar) {
-    this.buffer.fill(7 << 8);
+    this.buffer.fill(0x20 || (7 << 8));
     this.canvas = document.createElement('canvas');
     this.canvas.width = SCREEN_WIDTH * 8;
     this.canvas.height = SCREEN_HEIGHT * 16;

@@ -2189,6 +2189,83 @@ async function main() {
     link.href = blobLink;
     link.click();
   };
+
+  document.getElementById('save-ans')!.onclick = async e => {
+    e.preventDefault();
+    closeMenu();
+    const bytes: number[] = [
+      0x1B, '['.charCodeAt(0), '0'.charCodeAt(0), 'm'.charCodeAt(0),
+      0x1B, '['.charCodeAt(0), '2'.charCodeAt(0), 'J'.charCodeAt(0),
+    ];
+    let currentFg = -1, currentBg = -1;
+    for (let pos = 0; pos < screen.buffer.length; pos++) {
+      if ((pos % SCREEN_WIDTH) === 0) {
+        const line = 1 + (pos / SCREEN_WIDTH);
+        bytes.push(0x1b, '['.charCodeAt(0), ...[...String(line)].map(v => v.charCodeAt(0)), 'H'.charCodeAt(0));
+      }
+      const c = screen.buffer[pos] & 0xff;
+      if (c < 32) {
+        alert('Sorry - ANS format cannot use any of the first 32 characters');
+        return;
+      }
+      const fg = (screen.buffer[pos] >> 8) & 0xf;
+      const bg = (screen.buffer[pos] >> 12) & 0xf;
+      if (currentFg !== fg || currentBg !== bg) {
+        bytes.push(0x1b, '['.charCodeAt(0));
+        if (currentFg !== fg) switch (fg) {
+          case 0: bytes.push('3'.charCodeAt(0), '0'.charCodeAt(0)); break;
+          case 1: bytes.push('3'.charCodeAt(0), '4'.charCodeAt(0)); break;
+          case 2: bytes.push('3'.charCodeAt(0), '2'.charCodeAt(0)); break;
+          case 3: bytes.push('3'.charCodeAt(0), '6'.charCodeAt(0)); break;
+          case 4: bytes.push('3'.charCodeAt(0), '1'.charCodeAt(0)); break;
+          case 5: bytes.push('3'.charCodeAt(0), '5'.charCodeAt(0)); break;
+          case 6: bytes.push('3'.charCodeAt(0), '3'.charCodeAt(0)); break;
+          case 7: bytes.push('3'.charCodeAt(0), '7'.charCodeAt(0)); break;
+          case 8: bytes.push('9'.charCodeAt(0), '0'.charCodeAt(0)); break;
+          case 9: bytes.push('9'.charCodeAt(0), '4'.charCodeAt(0)); break;
+          case 10: bytes.push('9'.charCodeAt(0), '2'.charCodeAt(0)); break;
+          case 11: bytes.push('9'.charCodeAt(0), '6'.charCodeAt(0)); break;
+          case 12: bytes.push('9'.charCodeAt(0), '1'.charCodeAt(0)); break;
+          case 13: bytes.push('9'.charCodeAt(0), '5'.charCodeAt(0)); break;
+          case 14: bytes.push('9'.charCodeAt(0), '3'.charCodeAt(0)); break;
+          case 15: bytes.push('9'.charCodeAt(0), '7'.charCodeAt(0)); break;
+        }
+        if (currentFg !== fg && currentBg !== bg) {
+          bytes.push(';'.charCodeAt(0));
+        }
+        if (currentBg !== bg) switch(bg) {
+          case 0: bytes.push('4'.charCodeAt(0), '0'.charCodeAt(0)); break;
+          case 1: bytes.push('4'.charCodeAt(0), '4'.charCodeAt(0)); break;
+          case 2: bytes.push('4'.charCodeAt(0), '2'.charCodeAt(0)); break;
+          case 3: bytes.push('4'.charCodeAt(0), '6'.charCodeAt(0)); break;
+          case 4: bytes.push('4'.charCodeAt(0), '1'.charCodeAt(0)); break;
+          case 5: bytes.push('4'.charCodeAt(0), '5'.charCodeAt(0)); break;
+          case 6: bytes.push('4'.charCodeAt(0), '3'.charCodeAt(0)); break;
+          case 7: bytes.push('4'.charCodeAt(0), '7'.charCodeAt(0)); break;
+          case 8: bytes.push('1'.charCodeAt(0), '0'.charCodeAt(0), '0'.charCodeAt(0)); break;
+          case 9: bytes.push('1'.charCodeAt(0), '0'.charCodeAt(0), '4'.charCodeAt(0)); break;
+          case 10: bytes.push('1'.charCodeAt(0), '0'.charCodeAt(0), '2'.charCodeAt(0)); break;
+          case 11: bytes.push('1'.charCodeAt(0), '0'.charCodeAt(0), '6'.charCodeAt(0)); break;
+          case 12: bytes.push('1'.charCodeAt(0), '0'.charCodeAt(0), '1'.charCodeAt(0)); break;
+          case 13: bytes.push('1'.charCodeAt(0), '0'.charCodeAt(0), '5'.charCodeAt(0)); break;
+          case 14: bytes.push('1'.charCodeAt(0), '0'.charCodeAt(0), '3'.charCodeAt(0)); break;
+          case 15: bytes.push('1'.charCodeAt(0), '0'.charCodeAt(0), '7'.charCodeAt(0)); break;
+        }
+        bytes.push('m'.charCodeAt(0));
+        currentFg = fg;
+        currentBg = bg;
+      }
+      bytes.push(c);
+    }
+    bytes.push(0x1A);
+    const blob = new Blob([new Uint8Array(bytes)]);
+    const blobLink = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'dosimage.ans';
+    link.href = blobLink;
+    link.click();
+  };
+
   const loadFile = async (file: File) => {
     if ((file.type || '').startsWith('image/') || /\.(?:jpe?g|jfif|pjpeg|pjp|a?png|gif|bmp|ico|cur|tiff?|svg|webp|avif)$/i.test(file.name || '')) {
       let ib: ImageBitmap;
@@ -2351,7 +2428,7 @@ async function main() {
                 if (codes.length === 0) {
                   if (cursorOffset < (SCREEN_WIDTH*SCREEN_HEIGHT)) {
                     newBuffer.fill(
-                      ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                      0x20 | ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
                       Math.max(0, cursorOffset - cursorOffset % SCREEN_WIDTH),
                     );
                   }
@@ -2360,7 +2437,7 @@ async function main() {
                   case 1: {
                     if (cursorOffset > 0) {
                       newBuffer.fill(
-                        ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                        0x20 | ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
                         0,
                         Math.min(SCREEN_WIDTH * SCREEN_HEIGHT, (cursorOffset - cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH),
                       );
@@ -2368,7 +2445,7 @@ async function main() {
                     break;
                   }
                   case 2: {
-                    newBuffer.fill( ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)) );
+                    newBuffer.fill( 0x20 | ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)) );
                     cursorOffset = 0;
                     break;
                   }
@@ -2386,7 +2463,7 @@ async function main() {
                 const codes = ansiIntegerList(escape.slice(1, -1));
                 if (codes.length === 0) {
                   newBuffer.fill(
-                    ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                    0x20 | ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
                     cursorOffset,
                     cursorOffset - (cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH,
                   );
@@ -2394,7 +2471,7 @@ async function main() {
                 else for (const code of codes) switch (code) {
                   case 1: {
                     newBuffer.fill(
-                      ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                      0x20 | ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
                       cursorOffset - (cursorOffset % SCREEN_WIDTH),
                       cursorOffset + 1,
                     );
@@ -2402,7 +2479,7 @@ async function main() {
                   }
                   case 2: {
                     newBuffer.fill(
-                      ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
+                      0x20 | ((fgColor << 8) | (bgColor << 12) | (bold ? 0x800 : 0)),
                       cursorOffset - (cursorOffset % SCREEN_WIDTH),
                       cursorOffset - (cursorOffset % SCREEN_WIDTH) + SCREEN_WIDTH,
                     );
