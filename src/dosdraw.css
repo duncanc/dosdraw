@@ -168,6 +168,8 @@ body {
   border-color: #88f;
   border-top-color: transparent;
   border-left-color: transparent;
+  left: 256px;
+  top: 0px;
 }
 
 .tool {

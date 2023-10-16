@@ -822,7 +822,7 @@ async function main() {
   palette.oncontextmenu = e => {
     e.preventDefault();
   };
-  let currentChars = [219, 0, 0];
+  let currentChars = [219, 0, 32];
   let cursorX = 0, cursorY = 0, cursorLineStart = 0;
   const cursorElement = document.querySelector('.cursor') as HTMLElement;
   const setCursorPosition = (x: number, y: number) => {
