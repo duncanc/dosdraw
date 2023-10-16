@@ -2266,6 +2266,82 @@ async function main() {
     link.click();
   };
 
+  document.getElementById('save-html')!.onclick = async e => {
+    e.preventDefault();
+    closeMenu();
+    const buf = ['<!DOCTYPE html><html><head><meta charset="utf8"></head><body><pre style="font-family: \'Perfect DOS VGA 437\', \'IBM VGA 8x16\', monospace;"><span>'];
+    let currentFg = -1, currentBg = -1;
+    for (let pos = 0; pos < screen.buffer.length; pos++) {
+      if ((pos % SCREEN_WIDTH) === 0) {
+        if (pos !== 0) buf.push('\n');
+      }
+      const c = screen.buffer[pos] & 0xff;
+      const fg = (screen.buffer[pos] >> 8) & 0xf;
+      const bg = (screen.buffer[pos] >> 12) & 0xf;
+      if (currentFg !== fg || currentBg !== bg) {
+        buf.push('</span><span style="')
+        switch (fg) {
+          case 0: buf.push('color:#000;'); break;
+          case 1: buf.push('color:#008;'); break;
+          case 2: buf.push('color:#080;'); break;
+          case 3: buf.push('color:#088;');; break;
+          case 4: buf.push('color:#800;');; break;
+          case 5: buf.push('color:#808;');; break;
+          case 6: buf.push('color:#880;');; break;
+          case 7: buf.push('color:#ccc;');; break;
+          case 8: buf.push('color:#888;');; break;
+          case 9: buf.push('color:#00f;');; break;
+          case 10: buf.push('color:#0f0;');; break;
+          case 11: buf.push('color:#0ff;');; break;
+          case 12: buf.push('color:#f00;');; break;
+          case 13: buf.push('color:#f0f;');; break;
+          case 14: buf.push('color:#ff0;');; break;
+          case 15: buf.push('color:#fff;');; break;
+        }
+        switch(bg) {
+          case 0: buf.push('background-color:#000;'); break;
+          case 1: buf.push('background-color:#008;'); break;
+          case 2: buf.push('background-color:#080;'); break;
+          case 3: buf.push('background-color:#088;');; break;
+          case 4: buf.push('background-color:#800;');; break;
+          case 5: buf.push('background-color:#808;');; break;
+          case 6: buf.push('background-color:#880;');; break;
+          case 7: buf.push('background-color:#ccc;');; break;
+          case 8: buf.push('background-color:#888;');; break;
+          case 9: buf.push('background-color:#00f;');; break;
+          case 10: buf.push('background-color:#0f0;');; break;
+          case 11: buf.push('background-color:#0ff;');; break;
+          case 12: buf.push('background-color:#f00;');; break;
+          case 13: buf.push('background-color:#f0f;');; break;
+          case 14: buf.push('background-color:#ff0;');; break;
+          case 15: buf.push('background-color:#fff;');; break;
+        }
+        buf.push('">');
+        currentFg = fg;
+        currentBg = bg;
+      }
+      if (c === 0) {
+        buf.push('<span style="font-weight:bold"> </span>');
+      }
+      else {
+        const codePoint = codepageChars[c];
+        if (codePoint >= 32 && codePoint <= 127) {
+          buf.push(String.fromCharCode(codePoint));
+        }
+        else {
+          buf.push('&#x'+codePoint.toString(16)+';');
+        }
+      }
+    }
+    buf.push('</span></pre></body></html>');
+    const blob = new Blob(buf, {type:'text/html;charset=utf-8'});
+    const blobLink = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'dosimage.html';
+    link.href = blobLink;
+    link.click();
+  };
+
   const loadFile = async (file: File) => {
     if ((file.type || '').startsWith('image/') || /\.(?:jpe?g|jfif|pjpeg|pjp|a?png|gif|bmp|ico|cur|tiff?|svg|webp|avif)$/i.test(file.name || '')) {
       let ib: ImageBitmap;
